@@ -315,17 +315,22 @@ RPE, richer exercise library (categories/filters), programme duplication, CSV ex
 - **Programmes home** (`/programmes`) — training block cards with phase progress bar + peak lifts line, standalone programmes list, empty state CTA, bottom nav (Programmes / Progress), settings gear
 - **New training block** (`/blocks/new`) — name field, exercise picker with search/multi-select for peak lifts
 
+### Screens — done (continued)
+- **Block detail** (`/blocks/[id]`) — peak lifts header, checkable goals with inline add, segmented phase progress bar, phase list with status badges linking to programme detail, advance-phase button, "+ Add programme" dashed CTA
+- **Add programme to block** (`/blocks/[id]/programmes/new`) — phase label (with quick-tap suggestions) + programme name, posts to API
+
 ### API routes — done
 - `POST /api/blocks` — creates `training_blocks` row + `training_block_peak_lifts` rows
+- `POST /api/blocks/[id]/programmes` — adds a phase with auto-computed `block_order` and `status`
+- `POST /api/blocks/[id]/advance-phase` — archives current active phase, activates next planned
 
 ### Placeholder pages (shell only, no content yet)
-- `/blocks/[id]` — block detail
+- `/programmes/[id]` — programme detail
 - `/progress` — progress chart
 - `/settings` — sign out button only
 
 ### Up next (Phase 1 remainder)
-- Block detail page (`/blocks/[id]`) — goals, phase list, "+ Add programme"
-- Programme detail page (`/programmes/[id]`)
-- Programme Builder
-- Workout Logger
+- Programme detail page (`/programmes/[id]`) — session count, exercise list, Start workout / Edit actions
+- Programme Builder (`/programmes/[id]/edit`)
+- Workout Logger (`/sessions/[id]`)
 - Basic session history list

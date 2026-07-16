@@ -4,10 +4,9 @@ import BottomNav from '@/components/bottom-nav'
 
 type Phase = {
   id: string
-  name: string
+  phase_label: string
   status: 'planned' | 'active' | 'archived'
-  phase_label: string | null
-  block_order: number | null
+  order_index: number
 }
 
 type PeakLift = {
@@ -18,32 +17,28 @@ type PeakLift = {
 type Block = {
   id: string
   name: string
-  programmes: Phase[]
+  training_block_phases: Phase[]
   training_block_peak_lifts: PeakLift[]
 }
 
 type Programme = {
   id: string
   name: string
-  status: 'planned' | 'active' | 'archived'
+  status: 'active' | 'archived'
 }
 
 function PhaseBar({ phases }: { phases: Phase[] }) {
-  const sorted = [...phases].sort((a, b) => (a.block_order ?? 0) - (b.block_order ?? 0))
-  if (sorted.length === 0) return null
-
+  if (phases.length === 0) return null
+  const sorted = [...phases].sort((a, b) => a.order_index - b.order_index)
   return (
     <div className="flex gap-1 mt-3">
-      {sorted.map((phase) => (
+      {sorted.map(phase => (
         <div
           key={phase.id}
-          title={phase.phase_label ?? phase.name}
           className={`h-1.5 flex-1 rounded-full ${
-            phase.status === 'archived'
-              ? 'bg-indigo-500'
-              : phase.status === 'active'
-              ? 'bg-blue-400'
-              : 'bg-zinc-700'
+            phase.status === 'archived' ? 'bg-indigo-500'
+            : phase.status === 'active' ? 'bg-blue-400'
+            : 'bg-zinc-700'
           }`}
         />
       ))}
@@ -52,14 +47,14 @@ function PhaseBar({ phases }: { phases: Phase[] }) {
 }
 
 function BlockCard({ block }: { block: Block }) {
-  const phases = [...block.programmes].sort((a, b) => (a.block_order ?? 0) - (b.block_order ?? 0))
+  const phases = [...block.training_block_phases].sort((a, b) => a.order_index - b.order_index)
   const activePhase = phases.find(p => p.status === 'active')
   const completedCount = phases.filter(p => p.status === 'archived').length
 
   const peakLifts = [...block.training_block_peak_lifts]
     .sort((a, b) => a.order_index - b.order_index)
     .map(pl => pl.exercises?.name)
-    .filter(Boolean)
+    .filter(Boolean) as string[]
 
   return (
     <Link href={`/blocks/${block.id}`} className="block rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-colors">
@@ -73,44 +68,31 @@ function BlockCard({ block }: { block: Block }) {
       </div>
 
       {peakLifts.length > 0 && (
-        <p className="mt-1 text-xs text-zinc-500">
-          Peaking: {peakLifts.join(', ')}
-        </p>
+        <p className="mt-1 text-xs text-zinc-500">Peaking: {peakLifts.join(', ')}</p>
       )}
 
       <PhaseBar phases={phases} />
 
       <div className="mt-2 flex items-center justify-between">
         <p className="text-xs text-zinc-500">
-          {activePhase
-            ? activePhase.phase_label ?? activePhase.name
-            : phases.length === 0
-            ? 'No phases yet'
+          {activePhase ? activePhase.phase_label
+            : phases.length === 0 ? 'No phases yet'
             : 'All phases complete'}
         </p>
-        <p className="text-xs text-zinc-600">
-          {completedCount}/{phases.length} phases
-        </p>
+        <p className="text-xs text-zinc-600">{completedCount}/{phases.length} phases</p>
       </div>
     </Link>
   )
 }
 
 function ProgrammeRow({ programme }: { programme: Programme }) {
-  const statusColour =
-    programme.status === 'active'
-      ? 'text-blue-400'
-      : programme.status === 'planned'
-      ? 'text-zinc-500'
-      : 'text-zinc-600'
-
   return (
     <Link
       href={`/programmes/${programme.id}`}
       className="flex items-center justify-between py-3 border-b border-zinc-800 last:border-0 hover:text-zinc-300 transition-colors"
     >
       <span className="text-sm text-zinc-300">{programme.name}</span>
-      <span className={`text-xs capitalize ${statusColour}`}>{programme.status}</span>
+      <span className="text-xs text-blue-400">Active</span>
     </Link>
   )
 }
@@ -123,15 +105,15 @@ export default async function ProgrammesPage() {
       .from('training_blocks')
       .select(`
         id, name,
-        programmes(id, name, status, phase_label, block_order),
+        training_block_phases(id, phase_label, status, order_index),
         training_block_peak_lifts(order_index, exercises(name))
       `)
       .order('created_at', { ascending: false }),
     supabase
       .from('programmes')
       .select('id, name, status')
-      .is('block_id', null)
-      .neq('status', 'archived')
+      .is('phase_id', null)
+      .eq('status', 'active')
       .order('created_at', { ascending: false }),
   ])
 
@@ -153,9 +135,7 @@ export default async function ProgrammesPage() {
       <main className="flex-1 overflow-y-auto px-4 pb-28">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-            <div className="size-16 rounded-full bg-zinc-900 flex items-center justify-center text-2xl">
-              🏋️
-            </div>
+            <div className="size-16 rounded-full bg-zinc-900 flex items-center justify-center text-2xl">🏋️</div>
             <div>
               <h2 className="text-lg font-semibold text-white">No programmes yet</h2>
               <p className="mt-1 text-sm text-zinc-500">Start by creating your first training block.</p>
@@ -189,9 +169,6 @@ export default async function ProgrammesPage() {
               <section>
                 <div className="flex items-center justify-between mb-1">
                   <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Standalone Programmes</h2>
-                  <Link href="/programmes/new" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                    + New
-                  </Link>
                 </div>
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4">
                   {(standalone as Programme[]).map(p => (

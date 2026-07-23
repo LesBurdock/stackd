@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import AdvancePhaseButton from './advance-phase-button'
+import DeletePhaseButton from './delete-phase-button'
+import PhaseStatusToggle from './phase-status-toggle'
 
 const STATUS_LABEL: Record<string, string> = { active: 'Active', planned: 'Planned', archived: 'Done' }
 const STATUS_COLOUR: Record<string, string> = {
@@ -43,7 +45,7 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
     .single()
 
   const block = phase.training_blocks as unknown as { id: string; name: string } | null
-  const canAdvance = phase.status === 'active' && !!nextPhase
+  const canAdvance = phase.status === 'archived' && !!nextPhase
 
   return (
     <div className="h-dvh bg-zinc-950 text-white flex flex-col">
@@ -65,6 +67,12 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
             </span>
           </div>
         </div>
+        <DeletePhaseButton
+          phaseId={phaseId}
+          phaseLabel={phase.phase_label}
+          blockId={phase.block_id}
+          programmeCount={programmes?.length ?? 0}
+        />
       </header>
 
       <main className="flex-1 px-4 pb-12 flex flex-col gap-6">
@@ -100,12 +108,17 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
           </Link>
         </section>
 
-        {/* Advance phase */}
+        {/* Status toggle */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+          <PhaseStatusToggle phaseId={phaseId} initialStatus={phase.status as 'planned' | 'active' | 'archived'} />
+        </section>
+
+        {/* Start next phase */}
         {canAdvance && (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-            <p className="text-sm font-medium text-white mb-1">Finished this phase?</p>
+            <p className="text-sm font-medium text-white mb-1">Start the next phase?</p>
             <p className="text-xs text-zinc-500 mb-3">
-              This will archive all programmes in this phase and activate the next one.
+              This will activate the next planned phase.
             </p>
             <AdvancePhaseButton phaseId={phaseId} blockId={phase.block_id} />
           </section>

@@ -15,7 +15,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .single()
 
   if (!current) return NextResponse.json({ error: 'Phase not found' }, { status: 404 })
-  if (current.status !== 'active') return NextResponse.json({ error: 'Phase is not active' }, { status: 400 })
+  if (!['active', 'archived'].includes(current.status)) {
+    return NextResponse.json({ error: 'Phase must be active or archived to advance' }, { status: 400 })
+  }
 
   const { data: next } = await supabase
     .from('training_block_phases')
@@ -29,12 +31,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   if (!next) return NextResponse.json({ error: 'No planned phase to advance to' }, { status: 400 })
 
-  const { error: archiveError } = await supabase
-    .from('training_block_phases')
-    .update({ status: 'archived' })
-    .eq('id', current.id)
-
-  if (archiveError) return NextResponse.json({ error: archiveError.message }, { status: 500 })
+  // Ensure current phase is archived (may already be if toggled manually)
+  await supabase.from('training_block_phases').update({ status: 'archived' }).eq('id', current.id)
 
   const { error: activateError } = await supabase
     .from('training_block_phases')

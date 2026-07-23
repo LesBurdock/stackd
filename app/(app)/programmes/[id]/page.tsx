@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import StartWorkoutButton from './start-workout-button'
+import DeleteProgrammeButton from './delete-programme-button'
 
 type ProgrammeSet = {
   id: string
@@ -111,12 +112,19 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
           )}
           <h1 className="text-lg font-semibold truncate">{p.name}</h1>
         </div>
-        <Link
-          href={`/programmes/${id}/edit`}
-          className="shrink-0 text-xs text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-600"
-        >
-          Edit
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <DeleteProgrammeButton
+            programmeId={id}
+            programmeName={p.name}
+            redirectTo={phase ? `/phases/${p.phase_id}` : '/programmes'}
+          />
+          <Link
+            href={`/programmes/${id}/edit`}
+            className="text-xs text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-600"
+          >
+            Edit
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 flex flex-col gap-6">

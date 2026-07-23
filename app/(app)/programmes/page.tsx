@@ -122,7 +122,7 @@ export default async function ProgrammesPage() {
   const isEmpty = !hasBlocks && !hasStandalone
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="flex items-center justify-between px-4 pt-12 pb-4">
         <h1 className="text-xl font-bold tracking-tight">Stackd</h1>
         <Link href="/settings" className="p-1 text-zinc-400 hover:text-white transition-colors">
@@ -132,7 +132,7 @@ export default async function ProgrammesPage() {
         </Link>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-28">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-28">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
             <div className="size-16 rounded-full bg-zinc-900 flex items-center justify-center text-2xl">🏋️</div>

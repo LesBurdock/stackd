@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 export default function SettingsPage() {
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="px-4 pt-12 pb-4">
         <h1 className="text-xl font-bold tracking-tight">Settings</h1>
       </header>

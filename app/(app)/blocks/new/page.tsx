@@ -11,7 +11,7 @@ export default async function NewBlockPage() {
     .order('name')
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link
           href="/programmes"
@@ -24,7 +24,7 @@ export default async function NewBlockPage() {
         <h1 className="text-lg font-semibold">New training block</h1>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-12">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-12">
         <NewBlockForm exercises={exercises ?? []} />
       </main>
     </div>

@@ -4,7 +4,7 @@ import NewPhaseForm from './new-phase-form'
 export default async function NewPhasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link href={`/blocks/${id}`} className="p-1 -ml-1 text-zinc-400 hover:text-white transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">

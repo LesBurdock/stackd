@@ -41,7 +41,7 @@ export default async function BlockDetailPage({ params }: { params: Promise<{ id
   const completedCount = phases.filter(p => p.status === 'archived').length
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link href="/programmes" className="p-1 -ml-1 text-zinc-400 hover:text-white transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
@@ -56,7 +56,7 @@ export default async function BlockDetailPage({ params }: { params: Promise<{ id
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-12 flex flex-col gap-8">
+      <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-12 flex flex-col gap-8">
 
         <GoalsSection blockId={id} initialGoals={goals} />
 

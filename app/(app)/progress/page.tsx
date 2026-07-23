@@ -2,7 +2,7 @@ import BottomNav from '@/components/bottom-nav'
 
 export default function ProgressPage() {
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="px-4 pt-12 pb-4">
         <h1 className="text-xl font-bold tracking-tight">Progress</h1>
       </header>

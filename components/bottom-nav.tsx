@@ -7,7 +7,7 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 flex border-t border-zinc-800 bg-zinc-950">
+    <nav className="flex border-t border-zinc-800 bg-zinc-950" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <Link
         href="/programmes"
         className={`flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${

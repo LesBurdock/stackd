@@ -46,7 +46,7 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
   const canAdvance = phase.status === 'active' && !!nextPhase
 
   return (
-    <div className="min-h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link
           href={`/blocks/${phase.block_id}`}

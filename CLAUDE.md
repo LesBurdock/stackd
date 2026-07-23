@@ -298,16 +298,40 @@ Two screens not yet designed (flagged as open, use judgment or ask if unclear): 
 
 ## Build order
 
-**Phase 1 — Core loop**
-Supabase project + full schema + RLS (above) → Next.js scaffold on Vercel → auth → exercise library (seeded) → Programme Builder → Workout Logger → basic history table (no chart yet).
+**Phase 1 — Core loop** ✅ COMPLETE
+- Supabase project + full schema + RLS ✅
+- Next.js scaffold on Vercel ✅
+- Auth (login/signup toggle) ✅
+- Programmes home (blocks primary, standalone secondary, empty state) ✅
+- Training block detail (goals, phases, peak lifts) ✅
+- Phase detail (concurrent programmes, advance phase) ✅
+- Exercise library / picker (`/exercises?addTo=<programmeId>`) ✅
+- Programme Builder (`/programmes/[id]/edit`) — add/reorder/delete exercises, per-exercise form ✅
+- Programme detail (`/programmes/[id]`) — read-only, superset grouping, Start workout ✅
+- Workout Logger (`/sessions/[id]`) — set logging, rest timer, ramp suggestions, Finish ✅
+- API routes: POST /api/sessions, PATCH /api/sessions/[id], POST /api/sessions/[id]/sets ✅
+- API routes: POST /api/programmes/[id]/exercises, PATCH+DELETE /api/programme-exercises/[id] ✅
 
-**Phase 2 — Progress & polish**
-Progress chart (1RM/Volume/Intensity) → live last-time reference + live 1RM in logger → RIR → rest timer sound → bulk archive → custom exercise creation → keep-alive cron (Supabase free-tier project pauses after 7 days idle).
+**Phase 2 — Progress & polish** ← NEXT
+Progress chart (1RM/Volume/Intensity) → rest timer sound → bulk archive → custom exercise creation → keep-alive cron (Supabase free-tier project pauses after 7 days idle).
 
 **Phase 3 — Nice to haves**
 RPE, richer exercise library (categories/filters), programme duplication, CSV export.
 
 Note: training blocks (with phases holding several concurrent programmes) should be built in **Phase 1**, not deferred — the `phase_id` field is part of the core `programmes` table shape from the start, so retrofitting it later would mean an awkward migration.
+
+---
+
+## Implementation notes
+
+### Exercise seed data
+The `exercises` table is seeded directly in Supabase — no seed file in the repo. The exercise library is called "exercise library" in the Supabase project.
+
+### Programme Builder UX
+When adding an exercise via the picker, the API returns the new `programme_exercise` id. The picker redirects to `/programmes/[id]/edit?expanded=<newExId>` so the newly added exercise card auto-expands in the builder, making it clear the user should configure sets/reps before saving.
+
+### Ramp load scheme
+Set 1 is `load_type = 'absolute'` (user enters the opening weight at the gym). Sets 2–N are `load_type = 'percent_of_reference_set'` with `reference_set_number = 1`. Load percentages ramp linearly from `100 + ramp_end_percent/(N-1)` on set 2 up to `100 + ramp_end_percent` on set N. The logging API computes and returns `next_suggestion` after each set is logged.
 
 ---
 

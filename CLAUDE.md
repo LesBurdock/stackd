@@ -312,8 +312,14 @@ Two screens not yet designed (flagged as open, use judgment or ask if unclear): 
 - API routes: POST /api/sessions, PATCH /api/sessions/[id], POST /api/sessions/[id]/sets ✅
 - API routes: POST /api/programmes/[id]/exercises, PATCH+DELETE /api/programme-exercises/[id] ✅
 
-**Phase 2 — Progress & polish** ← NEXT
-Progress chart (1RM/Volume/Intensity) → rest timer sound → bulk archive → custom exercise creation → keep-alive cron (Supabase free-tier project pauses after 7 days idle).
+**Phase 2 — Progress & polish**
+- Progress page with Chart.js (Est. 1RM / Volume / Max weight toggle, headline stats, recent sessions) ✅
+- Edit logged sets (tap the tick to correct a typo) ✅
+- iOS zoom fix on inputs (font-size: 16px global rule) ✅
+- Delete programme + delete phase (with cascade warning) ✅
+- Phase status toggle (Planned / Active / Done) ✅
+- chart.js + react-chartjs-2 installed ✅
+- Remaining: rest timer sound → custom exercise creation → keep-alive cron
 
 **Phase 3 — Nice to haves**
 RPE, richer exercise library (categories/filters), programme duplication, CSV export.

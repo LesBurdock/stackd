@@ -81,6 +81,7 @@ function SetRow({
   prevSet,
   suggestion,
   onLog,
+  onEdit,
   restSeconds,
 }: {
   sessionExId: string
@@ -90,12 +91,18 @@ function SetRow({
   prevSet: { weight: number; reps: number } | undefined
   suggestion: number | null
   onLog: (sessionExId: string, set: ProgrammeSet, weight: number, reps: number, rir: number | null) => Promise<void>
+  onEdit: (loggedSetId: string, weight: number, reps: number, rir: number | null, sessionExId: string, setNumber: number) => Promise<void>
   restSeconds: number | null
 }) {
   const [weight, setWeight] = useState(suggestion !== null ? String(suggestion) : prevSet ? String(prevSet.weight) : '')
   const [reps, setReps] = useState(prevSet ? String(prevSet.reps) : String(set.target_reps_min ?? ''))
   const [rir, setRir] = useState(set.target_rir !== null ? String(set.target_rir) : '')
   const [logging, setLogging] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editWeight, setEditWeight] = useState('')
+  const [editReps, setEditReps] = useState('')
+  const [editRir, setEditRir] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Update weight if suggestion changes (from API response after prior set logged)
   useEffect(() => {
@@ -122,6 +129,83 @@ function SetRow({
     setLogging(false)
   }
 
+  function startEditing() {
+    setEditWeight(String(loggedSet!.weight))
+    setEditReps(String(loggedSet!.reps))
+    setEditRir(loggedSet!.rir !== null ? String(loggedSet!.rir) : '')
+    setEditing(true)
+  }
+
+  async function handleSaveEdit() {
+    const wNum = parseFloat(editWeight)
+    const rNum = parseInt(editReps)
+    if (isNaN(wNum) || isNaN(rNum) || rNum < 1) return
+    setSaving(true)
+    await onEdit(loggedSet!.id, wNum, rNum, editRir ? parseInt(editRir) : null, sessionExId, set.set_number)
+    setSaving(false)
+    setEditing(false)
+  }
+
+  if (isLogged && editing) {
+    return (
+      <div className="py-3 border-b border-zinc-800 last:border-0">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="w-6 text-xs text-zinc-600 shrink-0 text-center">{set.set_number}</span>
+          <span className="text-xs text-zinc-500">Editing</span>
+        </div>
+        <div className="flex items-center gap-2 pl-8">
+          <div className="flex-1">
+            <label className="block text-[10px] text-zinc-600 mb-1">Weight (kg)</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={editWeight}
+              onChange={e => setEditWeight(e.target.value)}
+              className="w-full rounded-lg border border-blue-500/50 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="w-16">
+            <label className="block text-[10px] text-zinc-600 mb-1">Reps</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={editReps}
+              onChange={e => setEditReps(e.target.value)}
+              className="w-full rounded-lg border border-blue-500/50 bg-zinc-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          <div className="w-14">
+            <label className="block text-[10px] text-zinc-600 mb-1">RIR</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={editRir}
+              onChange={e => setEditRir(e.target.value)}
+              placeholder="—"
+              className="w-full rounded-lg border border-blue-500/50 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-col gap-1 mt-4">
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
+            >
+              {saving ? '…' : 'Save'}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (isLogged) {
     return (
       <div className="flex items-center gap-3 py-3 border-b border-zinc-800 last:border-0">
@@ -134,9 +218,11 @@ function SetRow({
             <span className="text-xs text-zinc-500">RIR {loggedSet.rir}</span>
           )}
         </div>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-green-500 shrink-0">
-          <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
-        </svg>
+        <button onClick={startEditing} className="shrink-0 p-1 text-green-500 hover:text-green-400 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+            <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
     )
   }
@@ -159,10 +245,8 @@ function SetRow({
         <div className="flex-1">
           <label className="block text-[10px] text-zinc-600 mb-1">Weight (kg)</label>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            step="0.5"
-            min="0"
             value={weight}
             onChange={e => setWeight(e.target.value)}
             placeholder={prevSet ? String(prevSet.weight) : '0'}
@@ -212,6 +296,7 @@ function ExerciseBlock({
   prevLogs,
   suggestions,
   onLog,
+  onEdit,
   restSeconds,
 }: {
   se: SessionExercise
@@ -219,6 +304,7 @@ function ExerciseBlock({
   prevLogs: PrevLogs
   suggestions: Record<string, Record<number, number>>
   onLog: (sessionExId: string, set: ProgrammeSet, weight: number, reps: number, rir: number | null) => Promise<void>
+  onEdit: (loggedSetId: string, weight: number, reps: number, rir: number | null, sessionExId: string, setNumber: number) => Promise<void>
   restSeconds: number | null
 }) {
   const pe = se.programme_exercises
@@ -244,6 +330,7 @@ function ExerciseBlock({
             prevSet={prev.find(p => p.set_number === set.set_number)}
             suggestion={seSuggestions[set.set_number] ?? null}
             onLog={onLog}
+            onEdit={onEdit}
             restSeconds={restSeconds}
           />
         ))}
@@ -339,6 +426,21 @@ export default function Logger({
     const se = sessionExercises.find(s => s.id === seId)
     const restDuration = se?.programme_exercises.rest_seconds ?? se?.exercises.default_rest_seconds ?? 90
     setRestSeconds(restDuration)
+  }
+
+  async function handleEdit(loggedSetId: string, weight: number, reps: number, rir: number | null, seId: string, setNumber: number) {
+    await fetch(`/api/logged-sets/${loggedSetId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weight, reps, rir }),
+    })
+    setLogged(prev => ({
+      ...prev,
+      [seId]: {
+        ...prev[seId],
+        [setNumber]: { ...prev[seId][setNumber], weight, reps, rir },
+      },
+    }))
   }
 
   async function handleFinish() {
@@ -437,6 +539,7 @@ export default function Logger({
               prevLogs={previousLogs}
               suggestions={suggestions}
               onLog={handleLog}
+              onEdit={handleEdit}
               restSeconds={restSeconds}
             />
           ))

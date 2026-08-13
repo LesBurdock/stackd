@@ -308,7 +308,11 @@ function ExerciseBlock({
   restSeconds: number | null
 }) {
   const pe = se.programme_exercises
-  const workingSets = pe.programme_sets.filter(s => s.set_type !== 'warmup').sort((a, b) => a.set_number - b.set_number)
+  const seen = new Set<number>()
+  const workingSets = pe.programme_sets
+    .filter(s => s.set_type !== 'warmup')
+    .sort((a, b) => a.set_number - b.set_number)
+    .filter(s => { if (seen.has(s.set_number)) return false; seen.add(s.set_number); return true })
   const prev = prevLogs[se.exercise_id] ?? []
   const seSuggestions = suggestions[se.id] ?? {}
 
@@ -450,8 +454,7 @@ export default function Logger({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'completed' }),
     })
-    router.push(`/programmes/${programmeId}`)
-    router.refresh()
+    router.push('/programmes')
   }
 
   const currentScreen = screens[screenIdx]
@@ -481,9 +484,9 @@ export default function Logger({
         <button
           onClick={handleFinish}
           disabled={finishing}
-          className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+          className="text-sm text-zinc-500 hover:text-zinc-300 disabled:opacity-50 transition-colors"
         >
-          {finishing ? 'Saving…' : 'Finish'}
+          {finishing ? 'Saving…' : 'Finish early'}
         </button>
       </header>
 
@@ -548,28 +551,37 @@ export default function Logger({
 
       {/* Bottom navigation between exercises */}
       {screens.length > 1 && (
-        <div className="flex items-center justify-between px-4 pb-8 pt-3 border-t border-zinc-800">
+        <div className="flex items-center justify-between px-4 pb-8 pt-3 border-t border-zinc-800 gap-3">
           <button
             onClick={() => setScreenIdx(i => Math.max(0, i - 1))}
             disabled={screenIdx === 0}
-            className="flex items-center gap-1 text-sm text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
               <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
             </svg>
             Prev
           </button>
-          <span className="text-xs text-zinc-600">{screenIdx + 1} / {screens.length}</span>
-          <button
-            onClick={() => setScreenIdx(i => Math.min(screens.length - 1, i + 1))}
-            disabled={screenIdx === screens.length - 1}
-            className="flex items-center gap-1 text-sm text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            Next
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
-              <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <span className="text-xs text-zinc-600 shrink-0">{screenIdx + 1} / {screens.length}</span>
+          {screenIdx < screens.length - 1 ? (
+            <button
+              onClick={() => setScreenIdx(i => i + 1)}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
+            >
+              Next exercise
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+                <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleFinish}
+              disabled={finishing}
+              className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
+            >
+              {finishing ? 'Saving…' : 'Finish workout'}
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -1,12 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import BottomNav from '@/components/bottom-nav'
+import StartWorkoutInline from './start-workout-inline'
+
+type PhaseProgramme = {
+  id: string
+  name: string
+}
 
 type Phase = {
   id: string
   phase_label: string
   status: 'planned' | 'active' | 'archived'
   order_index: number
+  programmes: PhaseProgramme[]
 }
 
 type PeakLift = {
@@ -56,32 +63,54 @@ function BlockCard({ block }: { block: Block }) {
     .map(pl => pl.exercises?.name)
     .filter(Boolean) as string[]
 
+  const activeProgs = activePhase?.programmes ?? []
+
   return (
-    <Link href={`/blocks/${block.id}`} className="block rounded-2xl bg-zinc-900 border border-zinc-800 p-4 hover:border-zinc-700 transition-colors">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold text-white leading-snug">{block.name}</h3>
-        {activePhase && (
-          <span className="shrink-0 text-xs font-medium text-blue-400 bg-blue-400/10 rounded-full px-2 py-0.5">
-            Active
-          </span>
+    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+      {/* Top section — tapping navigates to block detail */}
+      <Link href={`/blocks/${block.id}`} className="block p-4 hover:bg-zinc-800/50 transition-colors">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-white leading-snug">{block.name}</h3>
+          {activePhase && (
+            <span className="shrink-0 text-xs font-medium text-blue-400 bg-blue-400/10 rounded-full px-2 py-0.5">
+              Active
+            </span>
+          )}
+        </div>
+
+        {peakLifts.length > 0 && (
+          <p className="mt-1 text-xs text-zinc-500">Peaking: {peakLifts.join(', ')}</p>
         )}
-      </div>
 
-      {peakLifts.length > 0 && (
-        <p className="mt-1 text-xs text-zinc-500">Peaking: {peakLifts.join(', ')}</p>
+        <PhaseBar phases={phases} />
+
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-xs text-zinc-500">
+            {activePhase ? activePhase.phase_label
+              : phases.length === 0 ? 'No phases yet'
+              : 'All phases complete'}
+          </p>
+          <p className="text-xs text-zinc-600">{completedCount}/{phases.length} phases</p>
+        </div>
+      </Link>
+
+      {/* Active phase workouts */}
+      {activeProgs.length > 0 && (
+        <div className="border-t border-zinc-800 divide-y divide-zinc-800">
+          {activeProgs.map(prog => (
+            <div key={prog.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <Link
+                href={`/programmes/${prog.id}`}
+                className="flex-1 min-w-0 text-sm text-zinc-300 hover:text-white transition-colors truncate"
+              >
+                {prog.name}
+              </Link>
+              <StartWorkoutInline programmeId={prog.id} />
+            </div>
+          ))}
+        </div>
       )}
-
-      <PhaseBar phases={phases} />
-
-      <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-zinc-500">
-          {activePhase ? activePhase.phase_label
-            : phases.length === 0 ? 'No phases yet'
-            : 'All phases complete'}
-        </p>
-        <p className="text-xs text-zinc-600">{completedCount}/{phases.length} phases</p>
-      </div>
-    </Link>
+    </div>
   )
 }
 
@@ -105,7 +134,7 @@ export default async function ProgrammesPage() {
       .from('training_blocks')
       .select(`
         id, name,
-        training_block_phases(id, phase_label, status, order_index),
+        training_block_phases(id, phase_label, status, order_index, programmes(id, name)),
         training_block_peak_lifts(order_index, exercises(name))
       `)
       .order('created_at', { ascending: false }),
@@ -137,14 +166,17 @@ export default async function ProgrammesPage() {
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
             <div className="size-16 rounded-full bg-zinc-900 flex items-center justify-center text-2xl">🏋️</div>
             <div>
-              <h2 className="text-lg font-semibold text-white">No programmes yet</h2>
-              <p className="mt-1 text-sm text-zinc-500">Start by creating your first training block.</p>
+              <h2 className="text-lg font-semibold text-white">Ready to train?</h2>
+              <p className="mt-1 text-sm text-zinc-500">Import your first training plan to get started.</p>
             </div>
             <Link
-              href="/blocks/new"
+              href="/import"
               className="mt-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
             >
-              Start your first training block
+              Import your first plan
+            </Link>
+            <Link href="/blocks/new" className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+              or create a training block manually
             </Link>
           </div>
         ) : (
@@ -153,9 +185,14 @@ export default async function ProgrammesPage() {
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Training Blocks</h2>
-                  <Link href="/blocks/new" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-                    + New block
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link href="/import" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                      + Import
+                    </Link>
+                    <Link href="/blocks/new" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                      + New block
+                    </Link>
+                  </div>
                 </div>
                 <div className="flex flex-col gap-3">
                   {(blocks as unknown as Block[]).map(block => (
@@ -179,12 +216,20 @@ export default async function ProgrammesPage() {
             )}
 
             {!hasBlocks && (
-              <Link
-                href="/blocks/new"
-                className="flex items-center justify-center rounded-2xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-500 hover:border-zinc-600 hover:text-zinc-400 transition-colors"
-              >
-                + Start a training block
-              </Link>
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/import"
+                  className="flex items-center justify-center rounded-2xl border border-dashed border-blue-700 p-6 text-sm text-blue-400 hover:border-blue-500 hover:text-blue-300 transition-colors"
+                >
+                  + Import a training block
+                </Link>
+                <Link
+                  href="/blocks/new"
+                  className="flex items-center justify-center rounded-2xl border border-dashed border-zinc-700 p-5 text-sm text-zinc-500 hover:border-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  + Create a block manually
+                </Link>
+              </div>
             )}
           </div>
         )}

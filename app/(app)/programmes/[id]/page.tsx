@@ -45,7 +45,7 @@ function setsLabel(ex: ProgrammeExercise): string {
       ? `${s.target_reps_min}`
       : `${s.target_reps_min}–${s.target_reps_max}`
     : null
-  return reps ? `${working.length}×${reps}` : `${working.length} sets`
+  return reps ? `${ex.num_sets}×${reps}` : `${ex.num_sets} sets`
 }
 
 export default async function ProgrammeDetailPage({ params }: { params: Promise<{ id: string }> }) {

@@ -2,6 +2,19 @@
 -- Keeps: auth.users (Supabase-managed) and your profiles row — login stays intact.
 -- Wipes: every programme, block, phase, session, and exercise. Nothing here is guarded
 -- or reversible — this is a deliberate fresh start, not a cautious partial migration.
+--
+-- THIS MIGRATION HAS ALREADY BEEN RUN. The guard below stops it from running a second
+-- time by accident -- it checks whether `exercises` already has real rows in it (it
+-- does, post-import) and aborts loudly rather than silently wiping everything again.
+-- If you ever genuinely need to re-run this on purpose, delete the guard block first --
+-- don't just ignore the error.
+
+do $$
+begin
+  if (select count(*) from exercises) > 0 then
+    raise exception 'ABORTED: exercises table already has % row(s) -- migration-001 has already been run, and running it again would wipe real production data (imported plans, exercises, logged weights). If this is genuinely intentional, remove this guard block from the top of the file first.', (select count(*) from exercises);
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Wipe all programme/training/exercise data

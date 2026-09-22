@@ -3,6 +3,7 @@
   "$id": "https://stackd.app/schemas/training-plan.schema.json",
   "title": "TrainingPlan",
   "description": "A periodized, multi-week strength training plan for one athlete. Extends the original Neil Burdock plan schema to also cover flexible/autoregulated plans (no pre-decided weekly weights), warm-up/primer slots, and non-integer rep prescriptions (ranges, durations, AMRAP). One unified shape for both styles: a flat list of exercise entries, one entry per exercise, per training day, per week.",
+  "$comment": "CHANGELOG -- if you're comparing this against an older copy of this file, or against neil-training-plan.json / lesley-training-plan.json (both generated before this revision, and still valid, just without these fields populated): (1) added optional `equipment` per exercise entry, so plan generation states equipment directly instead of the importer inferring it from exercise_name -- see the field's own description. (2) split `exercise_name` into base-movement-only and a new optional `variation` field for the equipment/grip/angle qualifier (e.g. 'Chin Up' + 'Supinated - Mid', not one compound string) -- see both fields' own descriptions. Any plan generated going forward should be written against THIS version -- state equipment and variation directly, don't fold them back into one compound exercise_name string.",
   "type": "object",
   "required": ["plan_name", "athlete", "generated_date", "weeks_total", "days_per_week", "target_priority_regions", "constraints", "exercises"],
   "additionalProperties": false,
@@ -126,7 +127,12 @@
         },
         "exercise_name": {
           "type": "string",
-          "description": "Exercise name, following the gym's naming convention (movement – equipment – grip/angle – stance/variant)."
+          "description": "The base movement name only -- e.g. 'Chin Up', 'Bench Press', 'Leg Press'. Equipment/grip/angle/stance details go in `variation` instead, not folded into this field. This split exists so the app can group and compare across variations of the same base movement (e.g. tracking chin-up strength across every grip variant together), rather than treating each fully-qualified name as an unrelated exercise."
+        },
+        "variation": {
+          "type": "string",
+          "description": "NEW (extension). The equipment/grip/angle/stance qualifier that distinguishes this specific variant of exercise_name -- e.g. 'Supinated - Mid' for a Chin Up, 'DB - Neutral - Incline 55°' for a Bench Press. Optional -- omit entirely for exercises with no meaningful variant (e.g. plain 'Plank', 'Dip'). State exercise_name and variation as two separate values when generating a new plan against this schema -- don't fold them back into one compound string and rely on the importer to split it apart again.",
+          "examples": ["Supinated - Mid", "DB - Neutral - Incline 55°", "45° - Mid stance"]
         },
         "body_region": {
           "type": "string",
@@ -136,6 +142,11 @@
             "Legs (Quad)", "Legs (Posterior Chain)", "Legs (Hamstring)", "Legs (Calf)",
             "Glutes/Hip", "Core", "Full Body"
           ]
+        },
+        "equipment": {
+          "type": "string",
+          "description": "NEW (extension). The equipment this exercise uses, stated directly rather than left for the importer to guess from exercise_name. Optional -- older plans that predate this field can omit it, in which case the importer falls back to keyword-matching exercise_name (less reliable, since it requires the name to already contain a giveaway like 'DB' or 'BB' -- state this directly whenever generating a new plan against this schema, don't rely on the fallback).",
+          "examples": ["Dumbbell", "Barbell", "Kettlebell", "Machine", "Cable", "EZ Bar", "Smith Machine", "Band", "Bodyweight"]
         },
         "target_priority": {
           "type": "boolean",

@@ -2,9 +2,9 @@
 
 A personal strength-training web app: design multi-week/multi-phase training programmes, log workouts at the gym, and track progress over time. Built for a single primary user (kg only, no multi-currency/unit concerns), but the schema supports multiple accounts.
 
-**This file was updated after real building had already started.** If you're picking this up mid-project: run `migration-001-unify-schema.sql` against the live Supabase project first — it **wipes all existing programme/block/session/exercise data** (deliberate — decided there's nothing worth preserving from the earlier build) while keeping your login/`profiles` row intact, then adds the new columns to bring the schema in line with what's below. The "Build order" section further down still reflects real progress on the *code/screens* side (✅ marks, actual routes) — don't re-build anything marked complete, and treat the schema/principles/routes sections above it as the current target state.
+**`migration-001-unify-schema.sql` has already been run against the live Supabase project. `migration-002-global-exercises.sql`, `migration-003-backfill-exercise-metadata.sql`, and `migration-004-split-exercise-variation.sql` have NOT been run yet.** Do not re-run `migration-001` — it would wipe the real, live production data that now exists (imported plans, real exercises, real logged weights), since that's exactly what it was written to do the one time it was meant to run. `002`, `003`, and `004` are still pending and safe to apply, but **follow the "Database change workflow" section below to do it** — run them against the separate test project first, take a manual backup, then apply to production — rather than running them straight against the live database now that real data exists. (Symptoms this explains: exercises are still only visible per-account right now, not globally, because `002` — the RLS policy change — hasn't been applied yet; `category`/`muscle_group`/`equipment` are still blank on existing rows because `003` — the backfill — hasn't run either; exercise names are still one compound string rather than split into base name + variation because `004` hasn't run.) The "Build order" section further down reflects real progress on the *code/screens* side (✅ marks, actual routes) — don't re-build anything marked complete, and treat the schema/principles/routes sections above it as the current target state.
 
-Keep `unified-training-plan.schema.json` in the project root — it's the formal JSON Schema for any importable training plan; the `/api/blocks/import-json` route validates against it directly with Ajv (see API routes below).
+Keep `unified-training-plan.schema.json` in the project root — it's the formal JSON Schema for any importable training plan; the `/api/blocks/import-json` route validates against it directly with Ajv (see API routes below). **If you're swapping in an updated copy of this file, read its own `$comment` field first** — the schema carries its own changelog so version history travels with the file itself, not just this doc.
 
 Full UI reference mockups are in `strength-app-ui-mockups.html` (open in a browser) — includes an Import preview screen (from an earlier design pass that also had a paste-text option; that option is dropped, see below), but predates the phase/programme structure change, the file-based JSON import becoming the *only* import path, the week_number addition, and import becoming the primary creation path. It doesn't yet have a **Phase detail** screen or the **"Which week is this?"** step that should appear at the start of the Workout Logger for programmes with week-specific `programme_sets` (see Screens, item 9) — design both fresh, following the same visual style as the other screens in the file (the existing Import preview screen is a good visual reference for the block-import preview, adapted to file-upload instead of paste; the week-suggestion step is a small, single-purpose prompt — a suggested number, editable, one confirm action). The **Programmes home empty state in the mockup file is also stale** — it shows "Start your first training block" as the primary CTA; per Screens item 2 below, that needs to become "Import your first plan" with manual block creation as the secondary link.
 
@@ -35,10 +35,11 @@ Auth: Supabase Auth's client SDK handles signup/login/session directly — no cu
 9. **A block phase can hold several concurrent programmes.** A "Accumulation" phase might have Upper, Lower, and Full body all running side by side (different days of the week) — not one programme per phase. Advancing a phase moves every programme in it forward together, in one action, not one at a time.
 10. **No numeric cap on active programmes.** An earlier version of this plan capped "active" programmes at 3-4 to avoid clutter. That's gone — a phase with several concurrent programmes made the cap meaningless, and blocks already prevent clutter visually (one summary card regardless of how much is inside). Reactivating or creating a programme is never blocked.
 11. **Duration-based exercises are first-class, not a workaround.** Planks, carries, and interval work are prescribed in seconds, not reps. `prescription_type` on `programme_exercises` switches between `'reps'` and `'duration'`; `target_reps_min`/`max` and `target_duration_seconds` are mutually exclusive based on it. `"MAX"` reps (e.g. max-effort chin-ups) don't need this at all — that's just `set_type = 'amrap'` with reps left null.
-12. **One unified plan JSON schema.** `unified-training-plan.schema.json` (in the project root alongside this file) is the single source of truth for any importable plan — reps as ranges/durations/MAX, a warm-up slot role, optional block-level `model_name`/`cycle_number`/`peaking_focus`, and a documented "weight decided live at the gym" state instead of a pre-planned number. `/api/blocks/import-json` validates against this exact file with Ajv.
+12. **One unified plan JSON schema.** `unified-training-plan.schema.json` (in the project root alongside this file) is the single source of truth for any importable plan — reps as ranges/durations/MAX, a warm-up slot role, optional block-level `model_name`/`cycle_number`/`peaking_focus`, and a documented "weight decided live at the gym" state instead of a pre-planned number. Also carries an optional `equipment` field and a split `exercise_name`/`variation` (base movement vs. the equipment/grip/angle qualifier, e.g. "Chin Up" + "Supinated - Mid") per exercise — both added specifically so plan generation states this directly rather than the importer inferring or splitting it after the fact. Fix data-quality problems like this at the schema/generation level, not by adding more inference logic at import time. `/api/blocks/import-json` validates against this exact file with Ajv.
 13. **Imports must be lossless — no plan data gets silently dropped or collapsed.** A plan where the weight genuinely changes every week (not just autoregulated within a session) is represented with `programme_sets.week_number`: null when a prescription applies uniformly across the whole phase, populated with one row per `(set_number, week_number)` when it varies weekly. `workout_sessions.week_number` (suggested from session count, always editable, same "suggestions, never lock" rule) tells the logger which week's rows to pull. Every other field an imported plan carries — athlete name, original generation date, stated weeks/days-per-week, weight provenance and confidence — has a real column, not a value that gets thrown away on import.
-14. **Import is the primary way exercises enter the library, not a pre-seeded starter set.** `exercises` no longer gets pre-seeded (the migration wipes the earlier seeded rows along with all other programme data — see intro note above). Both real source plans use verbose, gym-specific compound names, so a generic seed list wouldn't match well anyway. Every import matches against whatever's already in the user's library and creates new entries for anything unmatched; on a first-ever import that's everything, which is correct, not an error. Because names are this specific, exercise matching needs to be normalized/fuzzy, not exact-string comparison, or near-identical lifts across separate imports will keep spawning duplicates.
+14. **The exercise library is fully global, not per-account.** `exercises` has no pre-seeded starter set (see below), but once created, every exercise is visible to every account on the app — RLS scopes `insert`/`update`/`delete` to the creator (`created_by_user_id = auth.uid()`), but `select` is open to any authenticated user (migration 002). Both real source plans use verbose, gym-specific compound names, so a generic seed list wouldn't match well anyway. Every import matches against the **entire global library**, not just the importing user's own exercises, and creates new entries for anything unmatched — on the very first import ever done by anyone, that's everything, which is correct, not an error. Because names are this specific, exercise matching needs to be normalized/fuzzy, not exact-string comparison, or near-identical lifts across separate imports (even from different accounts) will keep spawning duplicates.
 15. **Import is the primary programme-creation path, not a Phase 2 add-on.** The JSON file importer belongs in the core loop, not deferred to polish. The Programmes home first-time empty state leads with "Import your first plan," not manual block creation. The Programme Builder is still essential, but its expected role is editing an already-imported programme (fixing a misparsed exercise, adjusting sets/tempo/rest), not building one from a blank slate — building from scratch still works on the same screen, it's just no longer the default path a new user is nudged toward.
+16. **Every database change is a numbered migration file, tested against the test project, backed up before touching production — no exceptions, ever.** See "Database change workflow" below for the full standing procedure. Never hand over freehand SQL to paste into the Supabase SQL Editor without a corresponding numbered file, and never let a production migration run without first telling the user to take a manual `pg_dump` backup — Free tier has no automatic backups on either project, so this manual step is the only recovery path that exists.
 
 ---
 
@@ -52,14 +53,27 @@ create table profiles (
   created_at timestamptz not null default now()
 );
 
--- exercises: NOT pre-seeded (the migration wipes all existing rows along with the rest of the
--- programme data — nothing preserved from the earlier build). Starts empty
--- on every account and grows organically via import matching (both importers) plus manual
--- "+ Add custom exercise". is_custom stays true for every row for now.
+-- exercises: NOT pre-seeded, and GLOBAL -- visible to every account (migration 002), not
+-- scoped per-user. Starts empty and grows via import matching (against the full global
+-- list, not just the importing user's own exercises) plus manual "+ Add custom exercise".
+-- Ownership (created_by_user_id) still governs who can edit/delete a row, just not who
+-- can see it. is_custom stays true for every row -- vestigial, see RLS section below.
 create table exercises (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  -- name: the BASE movement name only (e.g. "Chin Up", "Bench press") -- NOT the full
+  -- compound name. Equipment/grip/angle/stance qualifiers go in `variation` instead.
+  -- This split lets exercises be grouped/compared across variations of the same base
+  -- movement (e.g. all chin-up grip variants together), rather than treating every
+  -- fully-qualified name as a wholly separate exercise. See migration-004.
+  variation text,
+  -- variation: nullable -- some exercises genuinely have none (e.g. "Plank", "Dip").
   category text,
+  -- category: NEVER GIVEN A DEFINED PURPOSE anywhere in this spec -- no mapping, no UI
+  -- feature depends on it. Either drop this column, or decide what it should hold
+  -- (e.g. "Compound"/"Isolation" as a fixed property of the exercise, distinct from
+  -- programme_exercises.slot_role, which is contextual per-programme) -- don't populate
+  -- it until one of those is actually decided.
   muscle_group text[],
   equipment text,
   default_rest_seconds int not null default 90,
@@ -202,7 +216,49 @@ create table logged_sets (
 );
 ```
 
-**These `create table` statements describe the current target shape, for reference — do not run them against the live project, the tables already exist.** Apply `migration-001-unify-schema.sql` instead, which truncates all existing programme/block/session/exercise data (login/`profiles` untouched) and then adds the new columns.
+**These `create table` statements describe the current target shape, for reference — do not run them against the live project, the tables already exist.** `migration-001-unify-schema.sql` was already applied (it truncated all existing programme/block/session/exercise data at the time — login/`profiles` untouched — and added the new columns); **do not run it again now that real production data exists, it would wipe it.** Any further schema change needs its own new numbered migration per the "Database change workflow" section below.
+
+---
+
+## Database change workflow — test environment, migrations, backups
+
+This section is a standing instruction for how *any* database change gets made from here on, not a one-time setup note. Follow it every time, not just when it's convenient — Free tier has no automatic backups on either project, so the discipline here is the only safety net that exists.
+
+**Before doing anything with the two pending migrations (`002`, `003`) mentioned above**: check whether the test environment (separate org, test project, Vercel Preview vars) already exists. If it doesn't, set it up first, per the steps below — don't assume it's there and attempt to apply a migration "against the test project" that doesn't actually exist yet. Ask the user directly if it's unclear whether this has been done.
+
+### The test environment (set up once)
+
+1. **A separate Supabase organization** hosts the test project — orgs are free regardless of plan; only projects are capped at 2 active per org, and the real account is likely already at that cap. A new org sidesteps the limit rather than forcing a pause on something real.
+2. **A test project inside that org** (e.g. `stackd-test`), with every migration applied to it — same schema shape as production, no real data.
+3. **Vercel Preview-scoped environment variables** (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) point at the test project. Production-scoped vars keep pointing at the real one. Local `.env.local` also points at the test project, so local dev never touches real data either.
+4. **Work happens on git branches, never directly on `main`.** Pushing a branch gets an automatic Vercel Preview Deployment using the test database. Merging to `main` is the only thing that touches production, and it should always be a deliberate act, not a side effect of finishing a feature.
+
+If asked to help set this up, walk through these four steps concretely — which Supabase dashboard screens to click through, exact Vercel Environment Variables settings, exact `git checkout -b` commands — don't just restate the summary above.
+
+### Migrations — always a numbered file, never freehand SQL
+
+**Every schema change is a new file — `migration-004-whatever.sql`, `migration-005-whatever.sql`, and so on — never typed directly into the Supabase SQL Editor and run ad hoc.** If asked to make a schema change, always produce the file first, named with the next sequential number, following the same style as `migration-001` through `migration-003` (a comment explaining what it does and why, at the top). Refuse to just hand over a bare SQL snippet for the person to paste in without a corresponding numbered file — the numbering is what keeps a record of what's actually been applied and in what order, and that record is worthless if some changes bypass it.
+
+**Destructive changes (drop a column, change a type, delete rows) always split into two migrations, not one:**
+- Migration A: add the new thing, backfill it, and get the app code switched over to using it — nothing removed yet, so a mistake here is always recoverable
+- Migration B, later, once it's confirmed nothing references the old thing anymore: the actual removal
+
+Don't collapse these into one migration even if it seems more efficient — the whole point is that migration A alone leaves a safe rollback point.
+
+### Applying a migration — the required order, every time
+
+1. Run the new migration against the **test** project first (via its SQL Editor, or however migrations get applied there)
+2. Verify it via the test/preview deployment — don't skip this because the change "looks simple"
+3. **Before running anything against the production project, explicitly tell the user to take a manual backup first**, and give the exact command:
+   ```bash
+   pg_dump "postgresql://postgres.[project-ref]:[password]@[host]:5432/postgres" \
+     --no-owner --no-acl -f backup-$(date +%Y%m%d-%H%M).sql
+   ```
+   (connection string from Supabase dashboard → production project → Settings → Database → Connection string, "Session pooler" variant for a one-off command). This step is not optional and not skippable for "small" changes — Free tier has no restore button, so this manual dump is the only thing standing between a mistake and permanent data loss.
+4. Only after the backup exists, run the same tested migration file against production
+5. Verify against production directly afterward
+
+Never suggest skipping step 3, even for a change that seems purely additive — the discipline needs to be unconditional to actually hold, not applied selectively based on a judgment call about risk that might be wrong.
 
 ---
 
@@ -275,22 +331,20 @@ create policy "select own" on programme_sets for select using (
 
 Same shape for `logged_sets`, joining through `session_exercises` → `workout_sessions`.
 
-### `exercises` — mixed public/private table
+### `exercises` — globally readable, owner-controlled
 
 ```sql
 alter table exercises enable row level security;
 
-create policy "view global or own custom" on exercises for select using (
-  is_custom = false or created_by_user_id = auth.uid()
-);
-create policy "insert own custom" on exercises for insert with check (
-  is_custom = true and created_by_user_id = auth.uid()
-);
-create policy "update own custom" on exercises for update using (created_by_user_id = auth.uid());
-create policy "delete own custom" on exercises for delete using (created_by_user_id = auth.uid());
+create policy "any authenticated user can view any exercise" on exercises for select using (true);
+create policy "insert own" on exercises for insert with check (created_by_user_id = auth.uid());
+create policy "update own" on exercises for update using (created_by_user_id = auth.uid());
+create policy "delete own" on exercises for delete using (created_by_user_id = auth.uid());
 ```
 
-Custom exercises are private per-user by default — this is deliberate, not a gap.
+**Decided (migration 002): exercises are visible to every account on the app, deliberately.** This app currently has two real users who know each other and want a shared exercise pool — if either of you swaps an exercise in a programme, you should be able to browse what the other has already added, not just your own. Ownership (`created_by_user_id`) still controls who can edit or delete a given row; it just no longer controls who can see it. `is_custom` is now vestigial — every row is `true`, since there's no more global-seeded-vs-custom distinction to make — left in the schema rather than dropped, since it's harmless and there's live data in the table already.
+
+**Worth knowing if this app ever grows beyond two trusted users**: "global" here really does mean *every* account on the app, not a household/team scoped to just the two of you — that's a deliberate simplification (no team/household concept exists in this schema), not an oversight. If a third unrelated person ever signs up, they'd see this same shared pool too.
 
 ---
 
@@ -310,7 +364,7 @@ Everything else (reading lists, editing a name, toggling a goal) goes straight t
 | `POST /api/sessions/[id]/sets` | Log a set | Insert `logged_sets` row; compute and return the suggested weight for the *next* set in the ramp: `reference_weight * (load_percent / 100)`, rounded to `exercises.rounding_increment` |
 | `PATCH /api/sessions/[id]` | Finish or abandon session | Set `completed_at` + `status`; available at any point, not gated on reaching the last exercise |
 | `GET /api/exercises/[id]/history?metric=1rm\|volume\|intensity` | Progress chart data | Join `logged_sets` → `session_exercises` → `workout_sessions`, group by session, compute 1RM (Epley: `weight * (1 + reps/30)`), volume (`Σ weight*reps`), or intensity (`weight / estimated_1rm`), ordered by `workout_sessions.completed_at` |
-| `POST /api/blocks/import-json` | Import a whole training block from an uploaded `.json` file, losslessly | **No AI call — plain deterministic parsing.** Input is a **file upload** (`<input type="file" accept=".json">`, read client-side with `file.text()` → `JSON.parse()`), not pasted text. **Validate with Ajv against `unified-training-plan.schema.json`** (in the project root) before mapping anything. Once valid, map: `plan_name`→seeds `training_blocks.name`, `athlete`→`.athlete_name`, `generated_date`→`.plan_generated_date`, `weeks_total`→`.weeks_total`, `days_per_week`→`.days_per_week`, `model_name`→`.model_name`, `cycle_number`→`.cycle_number`, `peaking_focus.label`→name-matched `training_block_peak_lifts.exercise_id`, `.reason`→`.reason`, `.replaces`→`.replaces_note`, `target_priority_regions`→`training_blocks.target_priority_regions`, `constraints`→`training_blocks.constraints`, `mesocycle`→`training_block_phases.phase_label` (group consecutive rows sharing the same value into one phase; `duration_weeks` = count of distinct `week` values in that group), `day_num`+`day_label` grouped by `week`+`mesocycle`→one `programmes` row per distinct `day_label` with `phase_id` set to the parent phase — `day_num` itself is discarded after grouping, never stored, `series`→split into `superset_group`+`superset_order` (`"SIT"` → standalone, no group), `slot_role`→`programme_exercises.slot_role` directly, `exercise_name`→**not exact-string matched** against `exercises` — use normalized/fuzzy matching, since both plans use verbose compound names, `sets`→`num_sets`, `reps`→`target_reps_min`/`max` if integer or range, `target_duration_seconds`+`prescription_type='duration'` if a duration string, or `set_type='amrap'` with reps null if `"MAX"`, `tempo`/`rest_sec`→`tempo`/`rest_seconds` directly. **For `target_weight_kg`/`weight_status`/`weight_basis`/`confidence`**: compare values across all weeks for a given exercise slot — if identical throughout (autoregulated case), write **one** `programme_sets` row with `week_number = null`; if they vary by week, write **one row per `(set_number, week_number)` pair**, so no weekly value is ever dropped. `notes`→`programme_exercises.notes`. Imports every phase and every day-as-programme in the file, not a single programme — same preview-before-save behavior as any import. |
+| `POST /api/blocks/import-json` | Import a whole training block from an uploaded `.json` file, losslessly | **No AI call — plain deterministic parsing.** Input is a **file upload** (`<input type="file" accept=".json">`, read client-side with `file.text()` → `JSON.parse()`), not pasted text. **Validate with Ajv against `unified-training-plan.schema.json`** (in the project root) before mapping anything. Once valid, map: `plan_name`→seeds `training_blocks.name`, `athlete`→`.athlete_name`, `generated_date`→`.plan_generated_date`, `weeks_total`→`.weeks_total`, `days_per_week`→`.days_per_week`, `model_name`→`.model_name`, `cycle_number`→`.cycle_number`, `peaking_focus.label`→name-matched `training_block_peak_lifts.exercise_id`, `.reason`→`.reason`, `.replaces`→`.replaces_note`, `target_priority_regions`→`training_blocks.target_priority_regions`, `constraints`→`training_blocks.constraints`, `mesocycle`→`training_block_phases.phase_label` (group consecutive rows sharing the same value into one phase; `duration_weeks` = count of distinct `week` values in that group), `day_num`+`day_label` grouped by `week`+`mesocycle`→one `programmes` row per distinct `day_label` with `phase_id` set to the parent phase — `day_num` itself is discarded after grouping, never stored, `series`→split into `superset_group`+`superset_order` (`"SIT"` → standalone, no group), `slot_role`→`programme_exercises.slot_role` directly, `exercise_name`+`variation`→**matched against `exercises.name`+`.variation` together, not just name alone, and checked against the full global `exercises` table** (every account's exercises, not just the importing user's own — RLS makes `exercises` globally readable, see RLS section) — use normalized/fuzzy matching on both fields combined, since matching on `name` alone would incorrectly collapse different variations of the same base movement (e.g. two different chin-up grips) into one exercise. **If the source provides only a single compound `exercise_name` with no separate `variation` field (a legacy-format plan predating this split)**, split it the same way `migration-004-split-exercise-variation.sql` does for existing rows: on the first `" - "` or `" – "` delimiter, base before it becomes `name`, everything after becomes `variation`; no delimiter found (e.g. "Plank") means `variation` stays null. This split is not perfectly reliable — it was tested against every real exercise name in both source files and got two genuinely wrong results (cases where an equipment/angle qualifier was prefixed *before* the movement name, breaking the "first delimiter" assumption) — so this is a fallback for legacy files only, not something to lean on; a plan generated directly against the current schema should state `exercise_name` and `variation` as separate values from the start. **When creating a new (unmatched) exercise, populate `muscle_group` and `equipment` — do not leave them blank, this was a real bug in an earlier build:** `body_region`→`muscle_group` (as a one-element array, e.g. `['Chest']` — this mapping is explicit in Section 2 and must actually be implemented, not just documented). `equipment`→**prefer the source's `equipment` field directly if present** (added to the schema specifically so plan generation states this rather than the importer guessing it after the fact — far more reliable, since real understanding of what equipment a lift uses beats keyword-matching a name string). **Only if the source omits `equipment` (older plans predating the field)**, fall back to keyword matching on the full name+variation text: `DB`→Dumbbell, `BB`→Barbell, `KB`→Kettlebell, `EZ`→EZ Bar, `Smith`→Smith Machine, `Band`→Band, `pulley`/`cable`/`mag`/`rope`/`d handle`→Cable, `machine` or known machine-pattern names (`leg press`, `hack squat`, `pendulum squat`, `leg curl`, `leg extension`, `row - seated`)→Machine, known bodyweight-pattern names (`chin up`, `pull up`, `dip`, `plank`, `push up`, `sit up`, `dead bug`, `garhammer raise`, `burpee`, `mountain climber`, `hanging leg raise`)→Bodyweight, **otherwise leave `equipment` null rather than guessing** — a wrong guess is worse than a blank field the user can fix manually. `sets`→`num_sets`, `reps`→`target_reps_min`/`max` if integer or range, `target_duration_seconds`+`prescription_type='duration'` if a duration string, or `set_type='amrap'` with reps null if `"MAX"`, `tempo`/`rest_sec`→`tempo`/`rest_seconds` directly. **For `target_weight_kg`/`weight_status`/`weight_basis`/`confidence`**: compare values across all weeks for a given exercise slot — if identical throughout (autoregulated case), write **one** `programme_sets` row with `week_number = null`; if they vary by week, write **one row per `(set_number, week_number)` pair**, so no weekly value is ever dropped. `notes`→`programme_exercises.notes`. Imports every phase and every day-as-programme in the file, not a single programme — same preview-before-save behavior as any import. |
 
 Reactivating an archived standalone programme and bulk-archiving are **not** custom routes — no cap to check, so they're plain Supabase client calls (a status update, or an `update ... where id in (...)`).
 
@@ -323,7 +377,7 @@ Reactivating an archived standalone programme and bulk-archiving are **not** cus
 3. **Training block detail** — name, peak lifts line ("Peaking: Squat, Overhead press"), freeform checkable goals, phase progress tracker (segmented bar), ordered phase list with status badges, "+ Add phase"
 4. **Phase detail** — tapping a phase shows its concurrent programmes (e.g. Upper, Lower, Full body listed together), "+ Add programme" to add another to this phase, and the one-tap "finished this phase, start the next?" action that moves every programme in the phase forward together
 5. **Programme detail** — read-only: sessions-completed count, exercise list with superset grouping shown, "Start workout" (primary) and "Edit" (secondary) actions
-6. **Exercise library** — search, equipment filter chips, list with "Custom" badges, "+ Add custom exercise". Doubles as the picker when adding an exercise to a programme. **No pre-seeding** — empty on a fresh account (or after the migration clears the old seeded rows), grows via import matching
+6. **Exercise library** — search, equipment filter chips, scrollable list. **No "Custom" badge anymore** — since `is_custom` is vestigial (always true, no more global-seeded distinction), that badge has nothing meaningful left to distinguish; consider showing who added each exercise instead, now that the list is shared (e.g. a small "added by Neil" / "added by you" label), since that's the genuinely useful distinction in a global list. "+ Add custom exercise" still creates a new global entry. **No pre-seeding, and fully global** — starts empty, grows via import matching (against the *entire* shared list across every account, not just your own) plus manual additions from either account. Doubles as the picker when adding an exercise to a programme
 7. **Programme Builder** — add/reorder exercises; per-exercise form: sets, rep range, load scheme (equal/ramp toggle), tempo, rest, superset assignment. **Primarily an editing surface now**, not the main creation path — reached after import to fix/adjust something; still fully usable for building from scratch, just not the default expectation
 8. **Import training block (from file)** — the only import path: a `.json` file picker (`<input type="file" accept=".json">`, no text-paste option) → parses via `/api/blocks/import-json` → editable preview (flags unmatched exercises as "new custom exercise", highlighted) → "Save" or "Discard". Reached from Programmes home alongside "New Block", and as an option inside an empty phase or empty builder
 9. **Workout Logger** — if the programme has any week-specific `programme_sets`, a suggested-and-editable "Which week is this?" step appears first (skipped entirely otherwise); exercise chips for free navigation; supersets render as one combined screen (both exercises stacked); each set row shows last-time reference + editable weight/reps/RIR + live estimated 1RM; rest timer with sound; "Next exercise" advances the suggested order; "Finish workout" is a persistent header link, not tied to any exercise
@@ -358,11 +412,7 @@ Two screens not yet designed (flagged as open, use judgment or ask if unclear): 
 - Delete programme + delete phase (with cascade warning) ✅
 - Phase status toggle (Planned / Active / Done) ✅
 - chart.js + react-chartjs-2 installed ✅
-- JSON file import (`/import` → `POST /api/blocks/import-json`) ✅
-- Programmes home: active-phase workouts listed under each block card with inline Start button ✅
-- Workout logger: Next exercise button prominent, Finish early quiet; Finish workout prominent on last screen ✅
-- After finishing a workout, redirect to `/programmes` home ✅
-- Remaining, **in priority order**: rest timer sound → custom exercise creation → keep-alive cron
+- Remaining, **in priority order**: **JSON file import — treat as top priority, effectively "Phase 1.5"**, since import is now the primary programme-creation path per the updated principles above, even though the original Phase 1 shipped without it → rest timer sound → custom exercise creation → keep-alive cron
 
 **Phase 3 — Nice to haves**
 RPE, richer exercise library (categories/filters), programme duplication, CSV export.
@@ -374,7 +424,7 @@ Note: training blocks (with phases holding several concurrent programmes) are al
 ## Implementation notes
 
 ### Exercise seed data — REVERSED, see migration
-The `exercises` table was previously seeded directly in Supabase (no seed file in the repo). **This is no longer the plan** — pre-seeding was decided against in favor of the library growing purely through import matching (design principle 15). `migration-001-unify-schema.sql` wipes it entirely (along with all other programme data — this was a deliberate full reset, not a targeted cleanup). Do not add a new seed script.
+The `exercises` table was previously seeded directly in Supabase (no seed file in the repo). **This is no longer the plan** — pre-seeding was decided against in favor of the library growing purely through import matching (design principle 15). `migration-001-unify-schema.sql` **already wiped it entirely** (along with all other programme data — this was a deliberate one-time full reset, not a targeted cleanup, and it's already happened — do not run it again). Do not add a new seed script.
 
 ### Programme Builder UX
 When adding an exercise via the picker, the API returns the new `programme_exercise` id. The picker redirects to `/programmes/[id]/edit?expanded=<newExId>` so the newly added exercise card auto-expands in the builder, making it clear the user should configure sets/reps before saving.

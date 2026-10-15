@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { UI_STRINGS } from '@/lib/ui-strings'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 type SlotRole = 'warmup_primer' | 'primary_compound' | 'secondary_compound' | 'accessory_isolation' | 'finisher_isolation'
 
@@ -22,8 +23,10 @@ interface PreviewSet {
 
 interface PreviewExercise {
   exercise_name: string
+  variation: string | null
   matched_exercise_id: string | null
   matched_exercise_name: string | null
+  matched_exercise_variation: string | null
   is_new: boolean
   order_index: number
   superset_group: string | null
@@ -35,10 +38,12 @@ interface PreviewExercise {
   rest_seconds: number | null
   notes: string | null
   sets: PreviewSet[]
+  superset_set_count_mismatch: boolean
 }
 
 interface PreviewProgramme {
   name: string
+  order_index: number
   exercises: PreviewExercise[]
 }
 
@@ -66,7 +71,9 @@ interface ImportPreview {
     exercise_count: number
     new_exercise_count: number
     matched_exercise_count: number
+    superset_mismatch_count: number
   }
+  will_be_active: boolean
 }
 
 function formatReps(ex: PreviewExercise) {
@@ -84,18 +91,27 @@ function ExerciseRow({ ex }: { ex: PreviewExercise }) {
   const firstSet = ex.sets[0]
   const isWeekSpecific = ex.sets.some(s => s.week_number !== null)
   const weightLabel = firstSet?.target_weight != null ? `${firstSet.target_weight} kg` : 'TBD'
+  const displayName = formatExerciseName(ex.exercise_name, ex.variation)
+  const matchedDisplayName = ex.matched_exercise_name
+    ? formatExerciseName(ex.matched_exercise_name, ex.matched_exercise_variation)
+    : null
 
   return (
     <div className="flex items-start gap-3 px-4 py-3 border-b border-zinc-800 last:border-0">
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white truncate">{ex.exercise_name}</p>
-        {ex.matched_exercise_name && ex.matched_exercise_name !== ex.exercise_name && (
-          <p className="text-xs text-zinc-500 mt-0.5">matched → {ex.matched_exercise_name}</p>
+        <p className="text-sm text-white truncate">{displayName}</p>
+        {matchedDisplayName && matchedDisplayName !== displayName && (
+          <p className="text-xs text-zinc-500 mt-0.5">matched → {matchedDisplayName}</p>
         )}
         <p className="text-xs text-zinc-500 mt-0.5">
           {ex.num_sets} × {formatReps(ex)} · {weightLabel}
           {isWeekSpecific && ' · week-specific weights'}
         </p>
+        {ex.superset_set_count_mismatch && (
+          <p className="text-xs text-amber-400 mt-0.5">
+            ⚠ Set count differs from the rest of superset {ex.superset_group} — each exercise logs its own count, nothing is blocked
+          </p>
+        )}
       </div>
       {ex.is_new ? (
         <span className="shrink-0 text-xs font-medium bg-amber-500/15 text-amber-400 rounded-full px-2 py-0.5">new</span>
@@ -246,6 +262,9 @@ export default function ImportClient() {
               {preview.block.peaking_focus && (
                 <p className="text-xs text-zinc-400">Peaking: {preview.block.peaking_focus.label}</p>
               )}
+              <p className="text-xs text-zinc-400">
+                Will be saved as: {preview.will_be_active ? 'Active' : 'Up next (you already have an active training block)'}
+              </p>
               <div className="flex gap-4 mt-1 text-xs text-zinc-500">
                 <span>{preview.block.weeks_total} weeks</span>
                 <span>{preview.block.days_per_week}×/week</span>
@@ -296,7 +315,7 @@ export default function ImportClient() {
                         <p className="text-xs text-zinc-500 mt-0.5">{prog.exercises.length} exercises</p>
                       </div>
                       {prog.exercises.map(ex => (
-                        <ExerciseRow key={ex.exercise_name + ex.order_index} ex={ex} />
+                        <ExerciseRow key={ex.exercise_name + (ex.variation ?? '') + ex.order_index} ex={ex} />
                       ))}
                     </div>
                   ))}

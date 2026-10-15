@@ -2,10 +2,11 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 const LineChart = dynamic(() => import('./line-chart'), { ssr: false })
 
-type Exercise = { id: string; name: string; category: string | null }
+type Exercise = { id: string; name: string; variation: string | null; category: string | null }
 type DataPoint = { session_id: string; date: string; value: number }
 type Metric = '1rm' | 'volume' | 'max_weight'
 
@@ -50,7 +51,7 @@ export default function ProgressClient({ exercises }: { exercises: Exercise[] })
 
   function selectExercise(ex: Exercise) {
     setSelectedId(ex.id)
-    setSearch(ex.name)
+    setSearch(formatExerciseName(ex.name, ex.variation))
     setShowList(false)
     setData([])
   }
@@ -86,7 +87,7 @@ export default function ProgressClient({ exercises }: { exercises: Exercise[] })
                   onClick={() => selectExercise(ex)}
                   className="w-full text-left px-4 py-3 text-sm text-white hover:bg-zinc-800 border-b border-zinc-800 last:border-0 transition-colors"
                 >
-                  {ex.name}
+                  {formatExerciseName(ex.name, ex.variation)}
                 </button>
               ))
             )}
@@ -117,7 +118,7 @@ export default function ProgressClient({ exercises }: { exercises: Exercise[] })
             <p className="text-sm text-zinc-500 text-center py-8">Loading…</p>
           ) : data.length === 0 ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-center">
-              <p className="text-sm text-zinc-500">No sessions logged for {selectedExercise?.name} yet.</p>
+              <p className="text-sm text-zinc-500">No sessions logged for {selectedExercise ? formatExerciseName(selectedExercise.name, selectedExercise.variation) : ''} yet.</p>
             </div>
           ) : (
             <>

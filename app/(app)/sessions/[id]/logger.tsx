@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 type ProgrammeSet = {
   id: string
@@ -29,7 +30,7 @@ type SessionExercise = {
   order_index: number
   exercise_id: string
   programme_exercise_id: string
-  exercises: { id: string; name: string; default_rest_seconds: number; rounding_increment: number }
+  exercises: { id: string; name: string; variation: string | null; default_rest_seconds: number; rounding_increment: number }
   programme_exercises: {
     id: string
     num_sets: number
@@ -319,7 +320,7 @@ function ExerciseBlock({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-base font-semibold text-white">{se.exercises.name}</h2>
+        <h2 className="text-base font-semibold text-white">{formatExerciseName(se.exercises.name, se.exercises.variation)}</h2>
         <span className="text-xs text-zinc-500">{pe.num_sets} sets</span>
       </div>
       {pe.notes && <p className="text-xs text-zinc-500 mb-3">{pe.notes}</p>}
@@ -463,10 +464,12 @@ export default function Logger({
     : currentScreen?.ses ?? []
 
   const screenLabel = currentScreen?.type === 'superset'
-    ? `Superset: ${screenSEs.map(s => s.exercises.name).join(' + ')}`
-    : screenSEs[0]?.exercises.name ?? ''
+    ? `Superset: ${screenSEs.map(s => formatExerciseName(s.exercises.name, s.exercises.variation)).join(' + ')}`
+    : screenSEs[0] ? formatExerciseName(screenSEs[0].exercises.name, screenSEs[0].exercises.variation) : ''
 
-  // Exercise chip labels
+  // Exercise chip labels -- deliberately short (base name's first word only), unchanged by
+  // the name/variation split: these are nav chips, not full display, so variation is omitted
+  // on purpose, not an oversight.
   const chipLabels = screens.map(s =>
     s.type === 'superset'
       ? s.ses.map(se => se.exercises.name.split(' ')[0]).join('+')

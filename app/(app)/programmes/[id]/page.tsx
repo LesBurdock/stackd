@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import StartWorkoutButton from './start-workout-button'
 import DeleteProgrammeButton from './delete-programme-button'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 type ProgrammeSet = {
   id: string
@@ -19,7 +20,7 @@ type ProgrammeExercise = {
   superset_group: string | null
   superset_order: number | null
   notes: string | null
-  exercises: { id: string; name: string }
+  exercises: { id: string; name: string; variation: string | null }
   programme_sets: ProgrammeSet[]
 }
 
@@ -59,7 +60,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
       training_block_phases(phase_label, block_id, training_blocks(name)),
       programme_exercises(
         id, order_index, num_sets, superset_group, superset_order, notes,
-        exercises(id, name),
+        exercises(id, name, variation),
         programme_sets(id, set_number, target_reps_min, target_reps_max, set_type)
       )
     `)
@@ -156,7 +157,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
                       className={`flex items-center justify-between px-4 py-3 ${j < group.length - 1 ? 'border-b border-indigo-500/10' : ''}`}
                     >
                       <div>
-                        <p className="text-sm font-medium text-white">{ex.exercises.name}</p>
+                        <p className="text-sm font-medium text-white">{formatExerciseName(ex.exercises.name, ex.exercises.variation)}</p>
                         {ex.notes && <p className="text-xs text-zinc-500 mt-0.5">{ex.notes}</p>}
                       </div>
                       <span className="text-xs text-zinc-500 shrink-0 ml-3">{setsLabel(ex)}</span>
@@ -166,7 +167,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
               ) : (
                 <div key={group.id} className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">{group.exercises.name}</p>
+                    <p className="text-sm font-medium text-white">{formatExerciseName(group.exercises.name, group.exercises.variation)}</p>
                     {group.notes && <p className="text-xs text-zinc-500 mt-0.5">{group.notes}</p>}
                   </div>
                   <span className="text-xs text-zinc-500 shrink-0 ml-3">{setsLabel(group)}</span>

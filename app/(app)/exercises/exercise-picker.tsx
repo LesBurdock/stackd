@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 type Exercise = {
   id: string
   name: string
+  variation: string | null
   category: string | null
   equipment: string | null
   is_custom: boolean
@@ -101,7 +103,7 @@ export default function ExercisePicker({
               <div key={ex.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white">{ex.name}</span>
+                    <span className="text-sm font-medium text-white">{formatExerciseName(ex.name, ex.variation)}</span>
                     {ex.is_custom && (
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">
                         Custom

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatExerciseName } from '@/lib/exercise-name'
 
 type ProgrammeSet = {
   id: string
@@ -24,7 +25,7 @@ type ProgrammeExercise = {
   notes: string | null
   load_scheme: string
   ramp_end_percent: number | null
-  exercises: { id: string; name: string; default_rest_seconds: number }
+  exercises: { id: string; name: string; variation: string | null; default_rest_seconds: number }
   programme_sets: ProgrammeSet[]
 }
 
@@ -103,7 +104,7 @@ function ExerciseCard({
   }
 
   async function remove() {
-    if (!confirm(`Remove ${ex.exercises.name}?`)) return
+    if (!confirm(`Remove ${formatExerciseName(ex.exercises.name, ex.exercises.variation)}?`)) return
     setDeleting(true)
     const res = await fetch(`/api/programme-exercises/${ex.id}`, { method: 'DELETE' })
     if (!res.ok) {
@@ -146,7 +147,7 @@ function ExerciseCard({
           onClick={() => setExpanded(e => !e)}
           className="flex-1 min-w-0 text-left"
         >
-          <p className="text-sm font-medium text-white truncate">{ex.exercises.name}</p>
+          <p className="text-sm font-medium text-white truncate">{formatExerciseName(ex.exercises.name, ex.exercises.variation)}</p>
           <p className="text-xs text-zinc-500 mt-0.5">
             {ex.num_sets} sets · {repsLabel(ex)}
             {ex.superset_group ? ` · SS-${ex.superset_group}` : ''}

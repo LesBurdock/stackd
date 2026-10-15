@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { UI_STRINGS } from '@/lib/ui-strings'
 
 type SlotRole = 'warmup_primer' | 'primary_compound' | 'secondary_compound' | 'accessory_isolation' | 'finisher_isolation'
 
@@ -256,7 +257,7 @@ export default function ImportClient() {
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: 'Phases', value: preview.stats.phase_count },
-                { label: 'Programmes', value: preview.stats.programme_count },
+                { label: UI_STRINGS.importStatWorkouts, value: preview.stats.programme_count },
                 { label: 'Exercises', value: preview.stats.exercise_count },
               ].map(s => (
                 <div key={s.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">

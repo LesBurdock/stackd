@@ -428,6 +428,53 @@ Two screens not yet designed (flagged as open, use judgment or ask if unclear): 
 
 ---
 
+## Design handoff — decisions and build stages
+
+**Sources (in the repo `design/` folder):** `Stackd_visual_directions.pdf` (31 boards named `Ledger*`; the reference for layout and flow) and `STACKD_DESIGN_HANDOFF.md` (the list of intended behaviour). Review notes: `design-review-findings.md`. Terminology follows the Glossary; "Programme" never appears in the UI.
+
+**Visual tokens (decided).** Background `#F6F5F1`, ink `#16181D`, muted `#62666F`, divider `#E3E1DA`, border `#CFCCC3`, tag fill `#ECEAE3`, faint `#9A9DA4`. **Orange `#FF9500` = action** (primary buttons, current-set bar, active tab bar/underline, current segment, selected tick, latest chart point, rest-over screen) — always dark ink text on orange, never white, never orange text on the light background. **Lemon `#FFD60A` = highlight** (rest countdown on the dark takeover, e1RM tag, "Up next" chip) — only on dark surfaces or as a filled shape with dark text. **Brick red `#A8301B`** with white text for destructive confirms, and brick red text for error messages (failed save etc.); never orange for errors. Type: IBM Plex Sans (text) + IBM Plex Mono (numbers, tags) via `next/font`. No gradients or shadows; radii 8–12px on controls, 12px on cards; tap targets 44px minimum, 56–60px primary.
+
+**Navigation.** Three bottom tabs: Today / Training / Progress, active tab shown by an orange bar. Not shown inside the logger.
+
+**Derived counts (never stored, never hard-coded).**
+- Per workout per phase: sessions done = `workout_sessions` with `status = 'completed'` for that workout (`programme_id`); "Session x of N" = done + 1. Abandoned and in-progress sessions do not count; a completed session with skipped sets still counts.
+- N = the phase's `duration_weeks` (assumes each workout appears once per week). Phase total = sum of its workouts' N ("6 of 12"). Peak 3 weeks and Deload 1 week come out automatically.
+- Block week: "Week W of weeks_total · Phase" where W = (sum of `duration_weeks` of earlier phases) + (completed sessions of this workout in the phase + 1). Always shown in the logger header; tap-to-edit stays as a hidden affordance (saves `workout_sessions.week_number`).
+- Today suggestion: the workout in the active phase with the fewest completed sessions ("furthest behind"); ties broken by `programmes.order_index`. "Up next · after <workout>" names the workout of the most recent completed session (omit "after …" if none). No rotation is stored, so "Change workout" (bottom sheet listing the phase's workouts with their counts) can never corrupt anything: it just starts a session of the chosen workout via the existing `POST /api/sessions`.
+
+**Finishing phases and blocks (defaults, may be refined).** When every workout in the active phase has reached its N sessions, Today shows "Phase complete — start <next phase>" (one tap). A "Finish phase" action is also available any time on Phase detail. The last phase's completion offers "Finish training block" with a confirm sheet; "Finish training block early" is available from the block card with the same confirm sheet. Finishing sets `training_blocks.status = 'archived'` (as it does today); logged sessions are kept. A `finished_at` column (migration 013) is **deferred**: until it exists, previous-block date lines are derived from the block's first and last completed sessions.
+
+**Exercise titles (default).** Everywhere an exercise appears: line 1 = `group_name` (or `name` if there is no group); line 2 = the full `name`, muted — 1 line (ellipsis) in lists, 2 lines in the logger. `notes` go under that in muted 13px text, clamped to 2 lines with "More". `variation` is still only the Progress chart-line label.
+
+**Logger.**
+- Tabs A–F derive from order and superset grouping (letters/numbers are never stored): groups in order get A, B, C…; members get 1, 2… so reorder, delete and "Superset with next" need no renaming.
+- Set row: `#`, Last (previous session's same set: weight × reps @RIR), weight (+kg for bodyweight-equipment exercises), reps, RIR, Log. Done = check; current = highlighted with large inputs; upcoming = faded placeholders.
+- **Placeholder weight rule (v1):** plan target if it has one; else the same set's weight from the last session of that exercise; else empty. The performance-based progression rule below stays a later feature.
+- e1RM tag: last session's value until the first set is logged, then live client-side (Epley). Spread tag hidden when `load_scheme = 'equal'`. Reps shown as a single number when min = max ("4 × 9").
+- Rest: full-screen takeover after Log (lemon countdown on dark, −15s / +30s / Skip, "Back to log", Edit of the just-logged set), then the solid-orange "REST OVER" screen ("over by +0:08") with "Start set N". Uses the rebuilt timer (absolute end time, persisted, Wake Lock, vibrate/sound). Moving to the next exercise is never automatic.
+- Supersets: Alternate (default; round view; rest after the last member of the round, using that member's `rest_seconds`) or One at a time (rest after every set, each exercise's own rest). The toggle is screen state, resets per superset. Only the set count is shared by the members; reps/tempo/spread show per exercise when they differ. Triset (3 members) must generalise the round view.
+- "Add set" adds one extra logged set (no skipped row if left unlogged). Unlogged planned sets are saved as skipped at finish (008). Finish sheet: sets logged x of y, not logged list, elapsed time (`completed_at − started_at`), "Keep training".
+
+**Editing.** Workout detail → Edit = Remaining sessions only (in this phase; the template row already belongs to one phase). Logger → Edit on an exercise = Just today by default, with "Also apply to remaining sessions (in this phase)" off by default; button reads "Save for today". Details in "Editing a workout — two scopes".
+
+**Progress (updates the earlier spec).** Picker sheet lists the groups the user has logged, with sessions and latest value (each group's own default metric). Measures: e1RM / Volume (bars) / Weight (= `max_weight`); bodyweight-equipment exercises default to Reps (best reps in one set per session) with Reps / Volume / +kg; timed exercises (e.g. Plank) are left off the Reps default. Ranges 4W / 12W / 6M / All. Headline = latest session; stats = best, change since the start of the range, sessions. A group with several variations draws one line per variation (ink solid, orange solid, ink dashed, then another dash pattern) with a legend of rows (swatch, label, sessions, latest, change); "per hand" is shown only when every line in the group is Dumbbell equipment. Warm-up sets and skipped sets are excluded. No phase boundaries in v1.
+
+**Much later / not now.** Standalone workouts (outside any training block) — not designed, not built. The "Create a training block manually" path is kept as a quiet link only.
+
+**Later feature — week-to-week starting-weight suggestion (progression rule).** Pre-fills a greyed, editable set 1 weight from the last session; nothing changes mid-session beyond the ramp. Inputs: final non-skipped set of the last completed session of that exact exercise (W, reps R, RIR r), the plan's rep range and `target_rir` (default 2), step = `exercises.rounding_increment`. Rule: increase one step if R ≥ rep max and r ≥ target RIR; hold if R is inside the range; hold after one miss below the range minimum, decrease one step after two consecutive misses; with no RIR logged, increase only when R is at the top of the range. Convert the final-set result to set 1 by dividing by the final set's load percentage and rounding. The plan's own absolute weight wins; no suggestion after 3+ weeks off or for an exercise with no history.
+
+**Migration status (as of 2026-10-20).** stackd-test has 004, 005, 006, 007, 010, 011, 012 (not 008, 009). Production has 001–006, 010, 011, 012 (not 007, 008, 009). Database work is deliberately paused: 013 (`training_blocks.finished_at`, file `migration-013-block-finished-at.sql`) is written but deferred, to be applied together with 007/008/009 at the logger stage.
+
+**Build stages (each: test → preview on stackd-test → production).**
+1. Restyle: tokens, fonts, Training tab per boards (active block card, Up next, Previous training blocks, empty state, finish-block flow incl. early finish), derived-count helpers. **No database change.** Tabs: restyle the existing two; add Today in stage 2.
+2. Today + Change workout + Phase detail + read-only Workout detail (look-ahead), phase/block completion prompts, third tab.
+3. Progress: restyle, ranges, reps metric, picker sheet, bars for Volume.
+4. Logger rebuild: rows, Last, weight fallback, rest takeover and timer rebuild, finish sheet, skipped sets (008).
+5. Edit scopes: workout-detail edit mode and logger "Just today" sheet (007, 009).
+6. Superset modes, timed and MAX sets.
+
+---
+
 ## Build order
 
 **Phase 1 — Core loop** ✅ COMPLETE

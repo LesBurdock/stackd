@@ -3,7 +3,7 @@
   "$id": "https://stackd.app/schemas/training-plan.schema.json",
   "title": "TrainingPlan",
   "description": "A periodized, multi-week strength training plan for one athlete. Extends the original Neil Burdock plan schema to also cover flexible/autoregulated plans (no pre-decided weekly weights), warm-up/primer slots, and non-integer rep prescriptions (ranges, durations, AMRAP). One unified shape for both styles: a flat list of exercise entries, one entry per exercise, per training day, per week.",
-  "$comment": "CHANGELOG -- if you're comparing this against an older copy of this file, or against neil-training-plan.json / lesley-training-plan.json (both generated before this revision, and still valid, just without these fields populated): (1) added optional `equipment` per exercise entry, so plan generation states equipment directly instead of the importer inferring it from exercise_name -- see the field's own description. (2) split `exercise_name` into base-movement-only and a new optional `variation` field for the equipment/grip/angle qualifier (e.g. 'Chin Up' + 'Supinated - Mid', not one compound string) -- see both fields' own descriptions. (3) added optional `load_scheme` ('equal' | 'ramp') and `ramp_end_percent` per exercise entry, so a plan can state set-to-set weight spread directly (omitted = equal weights, so older plans are unaffected) -- see those fields' own descriptions. Any plan generated going forward should be written against THIS version -- state equipment and variation directly, don't fold them back into one compound exercise_name string.",
+  "$comment": "CHANGELOG -- if you're comparing this against an older copy of this file, or against neil-training-plan.json / lesley-training-plan.json (both generated before this revision, and still valid, just without these fields populated): (1) added optional `equipment` per exercise entry, so plan generation states equipment directly instead of the importer inferring it from exercise_name -- see the field's own description. (2) REVISED 2026-10-19: `exercise_name` is the FULL display name (not a base movement); new optional `exercise_group` (Progress grouping label, e.g. 'Bench Press') and optional `variation` (chart-line label, e.g. 'DB - Neutral - 35°') sit beside it -- see the three fields' own descriptions. Nothing is split or joined by the importer. (3) added optional `load_scheme` ('equal' | 'ramp') and `ramp_end_percent` per exercise entry, so a plan can state set-to-set weight spread directly (omitted = equal weights, so older plans are unaffected) -- see those fields' own descriptions. Any plan generated going forward should be written against THIS version -- state the full exercise_name, and state exercise_group and variation directly where known.",
   "type": "object",
   "required": [
     "plan_name",
@@ -195,14 +195,23 @@
         },
         "exercise_name": {
           "type": "string",
-          "description": "The base movement name only -- e.g. 'Chin Up', 'Bench Press', 'Leg Press'. Equipment/grip/angle/stance details go in `variation` instead, not folded into this field. This split exists so the app can group and compare across variations of the same base movement (e.g. tracking chin-up strength across every grip variant together), rather than treating each fully-qualified name as an unrelated exercise."
+          "description": "The FULL exercise name exactly as it should appear in the app -- e.g. 'Bench press - DB - Semi-Pronated - 35°'. It is stored as given and shown everywhere unchanged; the importer never splits or joins it. Use the same spelling every time for the same exercise (the importer matches on this field, normalising case and dash characters). To group related lifts for the Progress tab use `exercise_group`; to label a chart line use `variation`."
+        },
+        "exercise_group": {
+          "type": "string",
+          "description": "NEW (optional). The Progress-tab grouping label -- what you would pick in the Progress dropdown, e.g. 'Bench Press', 'Bicep Curl', 'Kneeling Row'. Progress shows one entry per group and one chart line per exercise in it. Rule: separate lifts go in separate groups (a seated row and a kneeling row are different groups); small tweaks of the same lift (grip, handle, angle, stance, equipment) share one group. Omit it and the exercise is its own group.",
+          "examples": [
+            "Bench Press",
+            "Kneeling Row",
+            "Chin Up"
+          ]
         },
         "variation": {
           "type": "string",
-          "description": "NEW (extension). The equipment/grip/angle/stance qualifier that distinguishes this specific variant of exercise_name -- e.g. 'Supinated - Mid' for a Chin Up, 'DB - Neutral - Incline 55°' for a Bench Press. Optional -- omit entirely for exercises with no meaningful variant (e.g. plain 'Plank', 'Dip'). State exercise_name and variation as two separate values when generating a new plan against this schema -- don't fold them back into one compound string and rely on the importer to split it apart again.",
+          "description": "Optional. The short label for this exercise's line on the Progress chart within its group -- the part of the name that tells it apart from its siblings, e.g. 'DB - Semi-Pronated - 35°' for a Bench Press. It is display-only: never part of the shown exercise name and never used for matching. Omit it and the line is labelled with the full exercise_name.",
           "examples": [
             "Supinated - Mid",
-            "DB - Neutral - Incline 55°",
+            "DB - Neutral - 55°",
             "45° - Mid stance"
           ]
         },

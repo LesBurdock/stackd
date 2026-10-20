@@ -32,7 +32,10 @@ interface ExerciseEntry {
   series: string
   slot_role: string
   exercise_name: string
+  exercise_group?: string
+  variation?: string
   body_region?: string
+  equipment?: string
   target_priority?: boolean
   sets: number
   reps: Reps
@@ -43,6 +46,8 @@ interface ExerciseEntry {
   weight_basis?: string
   confidence?: string
   notes?: string
+  load_scheme?: 'equal' | 'ramp'
+  ramp_end_percent?: number
 }
 
 interface Plan {
@@ -81,7 +86,44 @@ const CONFIDENCE_MAP: Record<string, string> = {
   'Low': 'low',
 }
 
-// ─── Fuzzy exercise matching ──────────────────────────────────────────────────
+// ─── Equipment inference (fallback only -- prefer the source's `equipment` field) ──────
+
+function inferEquipment(text: string): string | null {
+  if (/\bdb\b/i.test(text)) return 'Dumbbell'
+  if (/\bbb\b/i.test(text)) return 'Barbell'
+  if (/\bkb\b/i.test(text)) return 'Kettlebell'
+  if (/\bez\b/i.test(text)) return 'EZ Bar'
+  if (/smith/i.test(text)) return 'Smith Machine'
+  if (/band/i.test(text)) return 'Band'
+  if (/pulley|cable|mag|rope|d handle/i.test(text)) return 'Cable'
+  if (/machine|leg press|hack squat|pendulum squat|leg curl|leg extension|row - seated/i.test(text)) return 'Machine'
+  if (/chin up|pull up|\bdip\b|\bdips\b|plank|push up|sit up|dead bug|garhammer raise|burpee|mountain climber|hanging leg raise/i.test(text)) return 'Bodyweight'
+  return null
+}
+
+// Search text for the equipment keyword fallback only -- name + variation if present.
+// Not used for matching or display, just to give the keyword scan more to look at.
+function equipmentSearchText(entry: ExerciseEntry): string {
+  return entry.variation ? `${entry.exercise_name} ${entry.variation}` : entry.exercise_name
+}
+
+function resolveEquipment(entry: ExerciseEntry): string | null {
+  if (entry.equipment && entry.equipment.trim()) return entry.equipment.trim()
+  return inferEquipment(equipmentSearchText(entry))
+}
+
+// ─── Exercise matching -- name only, normalized-exact first, then fuzzy ───────────────
+
+// case-insensitive, trimmed, whitespace collapsed, hyphen/en-dash/em-dash unified, so a
+// plan that spells a known exercise with different capitalisation or a typographic dash
+// matches the existing row instead of creating a duplicate.
+function normalizeExerciseName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[-–—]/g, '-')
+}
 
 function normalizeTokens(name: string): string[] {
   return name
@@ -101,8 +143,15 @@ function similarity(a: string, b: string): number {
   return union === 0 ? 0 : intersection / union
 }
 
-function findBestMatch(name: string, exercises: Array<{ id: string; name: string }>) {
-  let best: { id: string; name: string } | null = null
+// Name-only matching, used both for exercise-entry matching and peaking_focus.label
+// matching. Normalized-exact match first (catches case/dash/whitespace differences with
+// full confidence); fuzzy token-overlap as the fallback for genuine near-duplicates.
+function findBestMatch<T extends { id: string; name: string }>(name: string, exercises: T[]): T | null {
+  const normalized = normalizeExerciseName(name)
+  const exact = exercises.find(ex => normalizeExerciseName(ex.name) === normalized)
+  if (exact) return exact
+
+  let best: T | null = null
   let bestScore = 0.4  // minimum threshold
   for (const ex of exercises) {
     const score = similarity(name, ex.name)
@@ -174,25 +223,45 @@ interface DbSet {
   weight_confidence: string | null
 }
 
+interface ExistingExercise {
+  id: string
+  name: string
+  group_name: string | null
+  variation: string | null
+}
+
 interface ParsedExercise {
   exercise_name: string
+  exercise_group: string | null
+  variation: string | null
   matched_exercise_id: string | null
   matched_exercise_name: string | null
   is_new: boolean
+  // If matched to an existing exercise whose group_name/variation is currently null and
+  // the plan supplies one, the value to fill in (never overwrites a non-null value).
+  // Null means nothing to fill.
+  fill_group_name: string | null
+  fill_variation: string | null
+  equipment: string | null
+  muscle_group: string[] | null
   order_index: number
   superset_group: string | null
   superset_order: number | null
   slot_role: string | null
   prescription_type: 'reps' | 'duration'
   num_sets: number
+  load_scheme: 'equal' | 'ramp'
+  ramp_end_percent: number | null
   tempo: string | null
   rest_seconds: number | null
   notes: string | null
   sets: DbSet[]
+  superset_set_count_mismatch: boolean
 }
 
 interface ParsedProgramme {
   name: string
+  order_index: number
   exercises: ParsedExercise[]
 }
 
@@ -222,10 +291,11 @@ interface ParseResult {
     exercise_count: number
     new_exercise_count: number
     matched_exercise_count: number
+    superset_mismatch_count: number
   }
 }
 
-function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: string }>): ParseResult {
+function parsePlan(plan: Plan, existingExercises: ExistingExercise[]): ParseResult {
   const entries = plan.exercises
 
   // Build ordered phase groups (consecutive entries sharing the same mesocycle)
@@ -242,8 +312,8 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
     currentPhase.entries.push(entry)
   }
 
-  // Cache for exercise matching (by original exercise_name string)
-  const matchCache = new Map<string, { id: string; name: string } | null>()
+  // Cache for exercise matching, keyed by the raw exercise_name
+  const matchCache = new Map<string, ExistingExercise | null>()
   function getMatch(name: string) {
     if (!matchCache.has(name)) {
       matchCache.set(name, findBestMatch(name, existingExercises))
@@ -253,6 +323,7 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
 
   let totalExercises = 0
   let newExercises = 0
+  let supersetMismatches = 0
 
   const phases: ParsedPhase[] = phaseGroups.map((pg, phaseIdx) => {
     // Find distinct day_labels in order of first appearance (by day_num)
@@ -264,10 +335,11 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
       .sort((a, b) => a[1] - b[1])
       .map(d => d[0])
 
-    const programmes: ParsedProgramme[] = dayLabels.map(dayLabel => {
+    const programmes: ParsedProgramme[] = dayLabels.map((dayLabel, dayIdx) => {
       const dayEntries = pg.entries.filter(e => e.day_label === dayLabel)
 
-      // Group by (series, exercise_name) — each group is one programme_exercise
+      // Group by (series, exercise_name) — each group is one programme_exercise. Plans are
+      // expected to spell the same exercise identically across weeks (schema guidance).
       type SlotKey = string
       const slotMap = new Map<SlotKey, ExerciseEntry[]>()
       for (const e of dayEntries) {
@@ -283,9 +355,9 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
         return seriesOrderKey(seriesA) - seriesOrderKey(seriesB)
       })
 
-      const exercises: ParsedExercise[] = sortedSlots.map(([key, slotEntries], exIdx) => {
-        const [series, exercise_name] = key.split('|||')
+      const exercises: ParsedExercise[] = sortedSlots.map(([, slotEntries], exIdx) => {
         const firstEntry = slotEntries[0]
+        const { series } = firstEntry
 
         const { superset_group, superset_order } = parseSeries(series)
         const repsParsed = parseReps(firstEntry.reps)
@@ -337,30 +409,66 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
           }
         }
 
-        const match = getMatch(exercise_name)
+        const match = getMatch(firstEntry.exercise_name)
         const isNew = !match
         totalExercises++
         if (isNew) newExercises++
 
+        const equipment = resolveEquipment(firstEntry)
+        const muscle_group = firstEntry.body_region ? [firstEntry.body_region] : null
+
+        // Fill-blank-only: only propose a fill if matched, the plan states a value, and
+        // the existing row doesn't already have one. Never overwrite a non-null value.
+        const fill_group_name = match && !match.group_name && firstEntry.exercise_group ? firstEntry.exercise_group : null
+        const fill_variation = match && !match.variation && firstEntry.variation ? firstEntry.variation : null
+
         return {
-          exercise_name,
+          exercise_name: firstEntry.exercise_name,
+          exercise_group: firstEntry.exercise_group ?? null,
+          variation: firstEntry.variation ?? null,
           matched_exercise_id: match?.id ?? null,
           matched_exercise_name: match?.name ?? null,
           is_new: isNew,
+          fill_group_name,
+          fill_variation,
+          equipment,
+          muscle_group,
           order_index: exIdx,
           superset_group,
           superset_order,
           slot_role: SLOT_ROLE_MAP[firstEntry.slot_role] ?? null,
           prescription_type: repsParsed.prescription_type,
           num_sets,
+          load_scheme: firstEntry.load_scheme ?? 'equal',
+          ramp_end_percent: firstEntry.load_scheme === 'ramp' ? (firstEntry.ramp_end_percent ?? null) : null,
           tempo: firstEntry.tempo ?? null,
           rest_seconds: firstEntry.rest_sec ?? null,
           notes: firstEntry.notes ?? null,
           sets,
+          superset_set_count_mismatch: false,  // computed below, once every exercise for this day exists
         }
       })
 
-      return { name: dayLabel, exercises }
+      // Flag superset groups whose member exercises don't all agree on num_sets. Never a
+      // block -- the logger runs the combined-screen round view for the lower count and
+      // the longer exercise's leftover sets are logged on their own. Only set count is
+      // expected to match within a superset; reps/tempo/rest/load_scheme are legitimately
+      // per-exercise and never shared or merged.
+      const setsByGroup = new Map<string, Set<number>>()
+      for (const ex of exercises) {
+        if (!ex.superset_group) continue
+        if (!setsByGroup.has(ex.superset_group)) setsByGroup.set(ex.superset_group, new Set())
+        setsByGroup.get(ex.superset_group)!.add(ex.num_sets)
+      }
+      const mismatchedGroups = new Set(
+        [...setsByGroup.entries()].filter(([, sizes]) => sizes.size > 1).map(([g]) => g)
+      )
+      for (const ex of exercises) {
+        ex.superset_set_count_mismatch = ex.superset_group ? mismatchedGroups.has(ex.superset_group) : false
+        if (ex.superset_set_count_mismatch) supersetMismatches++
+      }
+
+      return { name: dayLabel, order_index: dayIdx + 1, exercises }
     })
 
     return { phase_label: pg.label, order_index: phaseIdx, programmes }
@@ -386,6 +494,8 @@ function parsePlan(plan: Plan, existingExercises: Array<{ id: string; name: stri
       exercise_count: totalExercises,
       new_exercise_count: newExercises,
       matched_exercise_count: totalExercises - newExercises,
+      // counts exercise rows flagged, not groups -- a mismatched pair counts as 2
+      superset_mismatch_count: supersetMismatches,
     },
   }
 }
@@ -414,15 +524,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Invalid plan format: ${errors}` }, { status: 422 })
   }
 
-  // Fetch user's existing exercises for fuzzy matching
+  // Fetch every exercise visible to this user for matching (global library, migration 002)
   const { data: existingExercises } = await supabase
     .from('exercises')
-    .select('id, name')
+    .select('id, name, group_name, variation')
 
   const result = parsePlan(plan, existingExercises ?? [])
 
+  // Does this user already have an active block? Determines whether the new block saves
+  // as 'active' (and its first phase with it) or 'planned'/"Up next" (migration 005's
+  // single-active-block rule). Computed for preview too, since it's a cheap read and the
+  // save path needs the same answer.
+  const { data: existingActiveBlock } = await supabase
+    .from('training_blocks')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  const willBeActive = !existingActiveBlock
+
   if (preview) {
-    return NextResponse.json(result)
+    return NextResponse.json({ ...result, will_be_active: willBeActive })
   }
 
   // ── Save to database ──────────────────────────────────────────────────────
@@ -441,6 +563,10 @@ export async function POST(request: Request) {
       plan_generated_date: result.block.plan_generated_date,
       target_priority_regions: result.block.target_priority_regions,
       constraints: result.block.constraints,
+      peaking_label: result.block.peaking_focus?.label ?? null,
+      peaking_reason: result.block.peaking_focus?.reason ?? null,
+      peaking_replaces: result.block.peaking_focus?.replaces ?? null,
+      status: willBeActive ? 'active' : 'planned',
     })
     .select('id')
     .single()
@@ -449,17 +575,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create block' }, { status: 500 })
   }
 
-  // 2. Deduplicate new exercises across the whole plan, create them
-  const newExerciseNames = new Set<string>()
+  // 2. Deduplicate new exercises across the whole plan (by exercise_name), create them,
+  // storing exercise_group/variation exactly as given.
+  const newExercisesByName = new Map<string, { name: string; group_name: string | null; variation: string | null; equipment: string | null; muscle_group: string[] | null }>()
   for (const phase of result.phases) {
     for (const prog of phase.programmes) {
       for (const ex of prog.exercises) {
-        if (ex.is_new) newExerciseNames.add(ex.exercise_name)
+        if (ex.is_new && !newExercisesByName.has(ex.exercise_name)) {
+          newExercisesByName.set(ex.exercise_name, {
+            name: ex.exercise_name,
+            group_name: ex.exercise_group,
+            variation: ex.variation,
+            equipment: ex.equipment,
+            muscle_group: ex.muscle_group,
+          })
+        }
       }
     }
   }
 
-  const exerciseIdMap = new Map<string, string>()  // original name → db id
+  const exerciseIdMap = new Map<string, string>()  // exercise_name → db id
 
   // Seed with already-matched exercises
   for (const phase of result.phases) {
@@ -472,12 +607,17 @@ export async function POST(request: Request) {
     }
   }
 
-  // Insert new exercises (deduplicated)
-  if (newExerciseNames.size > 0) {
-    const toInsert = [...newExerciseNames].map(name => ({
-      name,
+  // Insert new exercises (deduplicated), populating muscle_group/equipment -- leaving
+  // these blank was a real bug in an earlier build.
+  if (newExercisesByName.size > 0) {
+    const toInsert = [...newExercisesByName.values()].map(e => ({
+      name: e.name,
+      group_name: e.group_name,
+      variation: e.variation,
       is_custom: true,
       created_by_user_id: user.id,
+      muscle_group: e.muscle_group,
+      equipment: e.equipment,
     }))
     const { data: created, error: exErr } = await supabase
       .from('exercises')
@@ -492,11 +632,34 @@ export async function POST(request: Request) {
     }
   }
 
-  // 3. Create peak lifts (fuzzy-match peaking_focus.label against all exercises)
+  // 2.5 Fill blank group_name/variation on matched existing exercises (never overwrites a
+  // non-null value -- computed during parsing, deduplicated per exercise id here since the
+  // same exercise can be matched by several entries across the plan).
+  const fillsByExerciseId = new Map<string, { group_name?: string; variation?: string }>()
+  for (const phase of result.phases) {
+    for (const prog of phase.programmes) {
+      for (const ex of prog.exercises) {
+        if (!ex.matched_exercise_id) continue
+        if (!ex.fill_group_name && !ex.fill_variation) continue
+        const existing = fillsByExerciseId.get(ex.matched_exercise_id) ?? {}
+        if (ex.fill_group_name && !existing.group_name) existing.group_name = ex.fill_group_name
+        if (ex.fill_variation && !existing.variation) existing.variation = ex.fill_variation
+        fillsByExerciseId.set(ex.matched_exercise_id, existing)
+      }
+    }
+  }
+  for (const [exerciseId, fill] of fillsByExerciseId) {
+    await supabase.from('exercises').update(fill).eq('id', exerciseId)
+  }
+
+  // 3. Create peak lifts (fuzzy-match peaking_focus.label against all exercises, by name
+  // only -- a label names a lift in general, not a specific variant). The raw label and
+  // reason/replaces are already stored on training_blocks above regardless of whether a
+  // match is found here, so nothing is lost if the label doesn't match any exercise.
   if (result.block.peaking_focus?.label) {
-    const allExercises = [
+    const allExercises: Array<{ id: string; name: string }> = [
       ...(existingExercises ?? []),
-      ...[...newExerciseNames].map(n => ({ id: exerciseIdMap.get(n)!, name: n })),
+      ...[...newExercisesByName.values()].map(e => ({ id: exerciseIdMap.get(e.name)!, name: e.name })),
     ]
     // Label might be "Dip / Leg Press" — try each part
     const labelParts = result.block.peaking_focus.label.split(/\s*\/\s*/)
@@ -521,7 +684,7 @@ export async function POST(request: Request) {
         block_id: block.id,
         order_index: phase.order_index,
         phase_label: phase.phase_label,
-        status: phase.order_index === 0 ? 'active' : 'planned',
+        status: willBeActive && phase.order_index === 0 ? 'active' : 'planned',
       })
       .select('id')
       .single()
@@ -538,6 +701,7 @@ export async function POST(request: Request) {
           name: prog.name,
           phase_id: dbPhase.id,
           status: 'active',
+          order_index: prog.order_index,
         })
         .select('id')
         .single()
@@ -564,7 +728,8 @@ export async function POST(request: Request) {
             tempo: ex.tempo,
             rest_seconds: ex.rest_seconds,
             notes: ex.notes,
-            load_scheme: 'equal',
+            load_scheme: ex.load_scheme,
+            ramp_end_percent: ex.ramp_end_percent,
           })
           .select('id')
           .single()

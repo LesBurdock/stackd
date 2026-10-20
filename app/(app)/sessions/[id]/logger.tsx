@@ -466,7 +466,8 @@ export default function Logger({
     ? `Superset: ${screenSEs.map(s => s.exercises.name).join(' + ')}`
     : screenSEs[0]?.exercises.name ?? ''
 
-  // Exercise chip labels
+  // Exercise chip labels -- deliberately short (first word of the full name only); these
+  // are nav chips, not full display.
   const chipLabels = screens.map(s =>
     s.type === 'superset'
       ? s.ses.map(se => se.exercises.name.split(' ')[0]).join('+')

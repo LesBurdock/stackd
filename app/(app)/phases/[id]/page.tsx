@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import AdvancePhaseButton from './advance-phase-button'
 import DeletePhaseButton from './delete-phase-button'
 import PhaseStatusToggle from './phase-status-toggle'
+import { UI_STRINGS } from '@/lib/ui-strings'
 
 const STATUS_LABEL: Record<string, string> = { active: 'Active', planned: 'Planned', archived: 'Done' }
 const STATUS_COLOUR: Record<string, string> = {
@@ -79,7 +80,7 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
 
         {/* Programmes list */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">Programmes</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">{UI_STRINGS.phaseWorkoutsHeading}</h2>
 
           <div className="flex flex-col gap-2">
             {(!programmes || programmes.length === 0) ? (

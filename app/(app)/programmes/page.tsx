@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import BottomNav from '@/components/bottom-nav'
 import StartWorkoutInline from './start-workout-inline'
+import { UI_STRINGS } from '@/lib/ui-strings'
 
 type PhaseProgramme = {
   id: string
@@ -205,7 +206,7 @@ export default async function ProgrammesPage() {
             {hasStandalone && (
               <section>
                 <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Standalone Programmes</h2>
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">{UI_STRINGS.standaloneWorkoutsHeading}</h2>
                 </div>
                 <div className="rounded-2xl bg-zinc-900 border border-zinc-800 px-4">
                   {(standalone as Programme[]).map(p => (

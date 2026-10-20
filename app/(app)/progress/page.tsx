@@ -7,7 +7,7 @@ export default async function ProgressPage() {
 
   const { data: exercises } = await supabase
     .from('exercises')
-    .select('id, name, category')
+    .select('id, name, group_name, variation, category')
     .order('name', { ascending: true })
 
   return (

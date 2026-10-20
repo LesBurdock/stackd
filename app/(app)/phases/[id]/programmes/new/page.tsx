@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import NewProgrammeForm from './new-programme-form'
+import { UI_STRINGS } from '@/lib/ui-strings'
 
 export default async function NewProgrammePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: phaseId } = await params
@@ -24,7 +25,7 @@ export default async function NewProgrammePage({ params }: { params: Promise<{ i
           </svg>
         </Link>
         <div>
-          <h1 className="text-lg font-semibold">Add programme</h1>
+          <h1 className="text-lg font-semibold">{UI_STRINGS.addWorkoutHeading}</h1>
           <p className="text-xs text-zinc-500">{phase.phase_label}</p>
         </div>
       </header>

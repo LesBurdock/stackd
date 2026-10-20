@@ -105,7 +105,13 @@ function ExerciseCard({
   async function remove() {
     if (!confirm(`Remove ${ex.exercises.name}?`)) return
     setDeleting(true)
-    await fetch(`/api/programme-exercises/${ex.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/programme-exercises/${ex.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      setDeleting(false)
+      const body = await res.json().catch(() => null)
+      alert(body?.error ?? 'Failed to remove this exercise — it may have logged history attached to it.')
+      return
+    }
     onDeleted()
   }
 

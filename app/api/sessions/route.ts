@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { UI_STRINGS } from '@/lib/ui-strings'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     .select('id')
     .eq('id', programme_id)
     .single()
-  if (!programme) return NextResponse.json({ error: 'Programme not found' }, { status: 404 })
+  if (!programme) return NextResponse.json({ error: UI_STRINGS.workoutNotFoundError }, { status: 404 })
 
   // Create the session
   const { data: session, error: sessionErr } = await supabase

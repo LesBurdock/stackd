@@ -28,7 +28,7 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/programmes')
+      router.push('/today')
       router.refresh()
     } else {
       const { error } = await supabase.auth.signUp({ email, password })

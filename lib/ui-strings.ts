@@ -8,6 +8,7 @@
 // label text only needs to change in one place.
 
 export const UI_STRINGS = {
+  navToday: 'Today',
   navTraining: 'Training',
   navProgress: 'Progress',
   standaloneWorkoutsHeading: 'Standalone workouts',

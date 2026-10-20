@@ -15,6 +15,15 @@ export default function BottomNav() {
   return (
     <nav className="flex bg-background border-t border-divider" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <Link
+        href="/today"
+        className={tabClass(pathname.startsWith('/today'))}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
+          <path fillRule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 7.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H4.75Z" clipRule="evenodd" />
+        </svg>
+        {UI_STRINGS.navToday}
+      </Link>
+      <Link
         href="/programmes"
         className={tabClass(pathname.startsWith('/programmes') || pathname.startsWith('/blocks'))}
       >

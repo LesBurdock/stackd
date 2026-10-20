@@ -22,10 +22,10 @@ interface PreviewSet {
 
 interface PreviewExercise {
   exercise_name: string
+  exercise_group: string | null
   variation: string | null
   matched_exercise_id: string | null
   matched_exercise_name: string | null
-  matched_exercise_variation: string | null
   is_new: boolean
   order_index: number
   superset_group: string | null
@@ -312,7 +312,7 @@ export default function ImportClient() {
                         <p className="text-xs text-zinc-500 mt-0.5">{prog.exercises.length} exercises</p>
                       </div>
                       {prog.exercises.map(ex => (
-                        <ExerciseRow key={ex.exercise_name + (ex.variation ?? '') + ex.order_index} ex={ex} />
+                        <ExerciseRow key={ex.exercise_name + ex.order_index} ex={ex} />
                       ))}
                     </div>
                   ))}

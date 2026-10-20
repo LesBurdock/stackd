@@ -29,7 +29,7 @@ export default function DeleteProgrammeButton({
     <button
       onClick={handleDelete}
       disabled={deleting}
-      className="shrink-0 text-xs text-red-500 hover:text-red-400 disabled:opacity-50 transition-colors px-3 py-1.5 rounded-lg border border-red-500/20 hover:border-red-500/40"
+      className="shrink-0 text-xs text-error hover:brightness-110 disabled:opacity-50 transition-[filter] px-3 py-1.5 rounded-lg border border-error/30 hover:border-error/50"
     >
       {deleting ? 'Deleting…' : 'Delete'}
     </button>

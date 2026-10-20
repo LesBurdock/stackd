@@ -4,7 +4,6 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { UI_STRINGS } from '@/lib/ui-strings'
-import { formatExerciseName } from '@/lib/exercise-name'
 
 type SlotRole = 'warmup_primer' | 'primary_compound' | 'secondary_compound' | 'accessory_isolation' | 'finisher_isolation'
 
@@ -91,10 +90,8 @@ function ExerciseRow({ ex }: { ex: PreviewExercise }) {
   const firstSet = ex.sets[0]
   const isWeekSpecific = ex.sets.some(s => s.week_number !== null)
   const weightLabel = firstSet?.target_weight != null ? `${firstSet.target_weight} kg` : 'TBD'
-  const displayName = formatExerciseName(ex.exercise_name, ex.variation)
-  const matchedDisplayName = ex.matched_exercise_name
-    ? formatExerciseName(ex.matched_exercise_name, ex.matched_exercise_variation)
-    : null
+  const displayName = ex.exercise_name
+  const matchedDisplayName = ex.matched_exercise_name ?? null
 
   return (
     <div className="flex items-start gap-3 px-4 py-3 border-b border-zinc-800 last:border-0">

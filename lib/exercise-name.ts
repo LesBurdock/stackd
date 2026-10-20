@@ -1,7 +1,8 @@
-// Shared display formatting for exercises.name + exercises.variation (migration 004/010).
-// `variation` is nullable -- some exercises genuinely have none (e.g. "Plank", "Dip") -- so
-// a null/empty variation must render as just the base name, never a trailing " - ".
+// Chart-line label only -- used exclusively by Progress. exercises.name is the full
+// display name and is shown everywhere else in the app exactly as stored; this helper
+// does NOT get used for the exercise library, builder, programme detail, logger, or
+// import preview -- those all just render `name` directly.
 
-export function formatExerciseName(name: string, variation?: string | null): string {
-  return variation ? `${name} - ${variation}` : name
+export function chartLabel(ex: { name: string; variation: string | null }): string {
+  return ex.variation ?? ex.name
 }

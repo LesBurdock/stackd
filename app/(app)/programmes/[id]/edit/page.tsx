@@ -21,7 +21,7 @@ export default async function ProgrammeEditPage({
       programme_exercises(
         id, order_index, num_sets, superset_group, superset_order,
         tempo, rest_seconds, notes, load_scheme, ramp_end_percent,
-        exercises(id, name, variation, default_rest_seconds),
+        exercises(id, name, default_rest_seconds),
         programme_sets(id, set_number, target_reps_min, target_reps_max, target_rir, set_type, load_type, load_percent)
       )
     `)

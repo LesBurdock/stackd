@@ -22,7 +22,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     .from('session_exercises')
     .select(`
       id, order_index, exercise_id, programme_exercise_id,
-      exercises(id, name, variation, default_rest_seconds, rounding_increment),
+      exercises(id, name, default_rest_seconds, rounding_increment),
       programme_exercises(
         id, num_sets, superset_group, superset_order, rest_seconds, notes, load_scheme,
         programme_sets(id, set_number, target_weight, target_reps_min, target_reps_max, target_rir, set_type, load_type, load_percent, reference_set_number)

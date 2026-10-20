@@ -2,12 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import BottomNav from '@/components/bottom-nav'
 import Card from '@/components/card'
-import StartBlockButton from './start-block-button'
-import FinishBlockButton from './finish-block-button'
+import EmptyTrainingState from '@/components/empty-training-state'
+import StartBlockButton from '@/components/start-block-button'
+import FinishBlockButton from '@/components/finish-block-button'
 import {
-  sessionLabel,
   phaseSessionTotals,
-  isPhaseComplete,
   isBlockReadyToFinish,
   previousBlockDateLabel,
   type PhaseProgress,
@@ -211,21 +210,7 @@ export default async function ProgrammesPage() {
 
       <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-28">
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted">No training block yet</p>
-            <h2 className="text-2xl font-bold text-ink leading-tight">Import your first<br />training block</h2>
-            <p className="text-sm text-muted max-w-xs">
-              Training blocks are built outside Stackd and arrive as a file. Import one and the whole block is created at once: phases, workouts and every set.
-            </p>
-            <Link href="/import" className="w-full max-w-xs">
-              <span className="block w-full rounded-[var(--radius-control)] bg-action px-6 py-3.5 text-sm font-semibold text-ink text-center hover:brightness-95 transition-[filter]">
-                Choose training block file
-              </span>
-            </Link>
-            <Link href="/blocks/new" className="text-sm text-muted hover:text-ink transition-colors underline">
-              Build a training block manually
-            </Link>
-          </div>
+          <EmptyTrainingState />
         ) : (
           <div className="flex flex-col gap-8">
             {activeBlock && (

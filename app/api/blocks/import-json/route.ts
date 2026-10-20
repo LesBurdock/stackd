@@ -268,6 +268,7 @@ interface ParsedProgramme {
 interface ParsedPhase {
   phase_label: string
   order_index: number
+  duration_weeks: number
   programmes: ParsedProgramme[]
 }
 
@@ -471,7 +472,7 @@ function parsePlan(plan: Plan, existingExercises: ExistingExercise[]): ParseResu
       return { name: dayLabel, order_index: dayIdx + 1, exercises }
     })
 
-    return { phase_label: pg.label, order_index: phaseIdx, programmes }
+    return { phase_label: pg.label, order_index: phaseIdx, duration_weeks: pg.weeks.size, programmes }
   })
 
   return {
@@ -684,6 +685,7 @@ export async function POST(request: Request) {
         block_id: block.id,
         order_index: phase.order_index,
         phase_label: phase.phase_label,
+        duration_weeks: phase.duration_weeks,
         status: willBeActive && phase.order_index === 0 ? 'active' : 'planned',
       })
       .select('id')

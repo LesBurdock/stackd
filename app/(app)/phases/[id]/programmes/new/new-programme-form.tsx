@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UI_STRINGS } from '@/lib/ui-strings'
+import Button from '@/components/button'
 
 export default function NewProgrammeForm({ phaseId, blockId }: { phaseId: string; blockId: string }) {
   const router = useRouter()
@@ -32,7 +33,7 @@ export default function NewProgrammeForm({ phaseId, blockId }: { phaseId: string
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-zinc-300 mb-1.5">
+        <label htmlFor="name" className="block text-sm font-medium text-ink mb-1.5">
           {UI_STRINGS.workoutNameLabel}
         </label>
         <input
@@ -43,24 +44,20 @@ export default function NewProgrammeForm({ phaseId, blockId }: { phaseId: string
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="e.g. Upper body, Lower body, Full body"
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full rounded-[var(--radius-control)] border border-border bg-white px-4 py-3 text-ink placeholder-faint focus:border-ink focus:outline-none"
         />
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-2 text-xs text-muted">
           {UI_STRINGS.multiWorkoutsPerPhaseHelpText}
         </p>
       </div>
 
       {error && (
-        <p className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{error}</p>
+        <p className="rounded-[var(--radius-control)] bg-white border border-error/30 px-4 py-3 text-sm text-error">{error}</p>
       )}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
+      <Button type="submit" variant="primary" className="w-full" disabled={loading}>
         {loading ? UI_STRINGS.addWorkoutButtonLoading : UI_STRINGS.addWorkoutButton}
-      </button>
+      </Button>
     </form>
   )
 }

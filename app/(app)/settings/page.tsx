@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 
 export default function SettingsPage() {
   return (
-    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-background text-ink flex flex-col">
       <header className="px-4 pt-12 pb-4">
         <h1 className="text-xl font-bold tracking-tight">Settings</h1>
       </header>
@@ -26,7 +26,7 @@ function SignOutButton() {
     <form action={signOut}>
       <button
         type="submit"
-        className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-left text-sm text-red-400 hover:bg-zinc-800 transition-colors"
+        className="w-full rounded-xl border border-divider bg-white px-4 py-3 text-left text-sm text-error hover:bg-tag-fill transition-colors"
       >
         Sign out
       </button>

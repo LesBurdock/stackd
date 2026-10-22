@@ -1,28 +1,48 @@
 @import "tailwindcss";
 
+/* Stackd "Ledger" visual direction — see CLAUDE.md's Design handoff section.
+   Single light theme; no dark/light mode switching (the Logger's rest-timer
+   takeover is an intentional dark full-screen state, built separately in
+   stage 4 — not a site-wide dark mode). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --stone: #F6F5F1;
+  --ink: #16181D;
+  --muted: #62666F;
+  --divider: #E3E1DA;
+  --border: #CFCCC3;
+  --tag-fill: #ECEAE3;
+  --faint: #9A9DA4;
+  --action: #FF9500;
+  --highlight: #FFD60A;
+  --error: #A8301B;
+
+  --background: var(--stone);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-stone: var(--stone);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-divider: var(--divider);
+  --color-border: var(--border);
+  --color-tag-fill: var(--tag-fill);
+  --color-faint: var(--faint);
+  --color-action: var(--action);
+  --color-highlight: var(--highlight);
+  --color-error: var(--error);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --radius-control: 10px;
+  --radius-card: 12px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
 /* Prevent iOS Safari from zooming on input focus */

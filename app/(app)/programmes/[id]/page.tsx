@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import StartWorkoutButton from './start-workout-button'
 import DeleteProgrammeButton from './delete-programme-button'
+import { assignTabLabels } from '@/lib/exercise-tabs'
 
 type ProgrammeSet = {
   id: string
@@ -19,7 +20,7 @@ type ProgrammeExercise = {
   superset_group: string | null
   superset_order: number | null
   notes: string | null
-  exercises: { id: string; name: string }
+  exercises: { id: string; name: string; group_name: string | null }
   programme_sets: ProgrammeSet[]
 }
 
@@ -31,6 +32,8 @@ type Programme = {
   training_block_phases: {
     phase_label: string
     block_id: string
+    status: string
+    duration_weeks: number | null
     training_blocks: { name: string } | null
   } | null
   programme_exercises: ProgrammeExercise[]
@@ -56,10 +59,10 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
     .from('programmes')
     .select(`
       id, name, status, phase_id,
-      training_block_phases(phase_label, block_id, training_blocks(name)),
+      training_block_phases(phase_label, block_id, status, duration_weeks, training_blocks(name)),
       programme_exercises(
         id, order_index, num_sets, superset_group, superset_order, notes,
-        exercises(id, name),
+        exercises(id, name, group_name),
         programme_sets(id, set_number, target_reps_min, target_reps_max, set_type)
       )
     `)
@@ -79,28 +82,37 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
   const block = phase?.training_blocks
 
   const exercises = [...p.programme_exercises].sort((a, b) => a.order_index - b.order_index)
+  const tabbed = assignTabLabels(
+    exercises.map(ex => ({ ...ex, orderIndex: ex.order_index, supersetGroup: ex.superset_group, supersetOrder: ex.superset_order }))
+  )
 
-  // Group into supersets and individual items
-  const groups: (ProgrammeExercise | ProgrammeExercise[])[] = []
+  // Group into supersets and individual items, preserving the derived tab labels.
+  const groups: (typeof tabbed[number] | typeof tabbed)[] = []
   const seen = new Set<string>()
-  for (const ex of exercises) {
+  for (const ex of tabbed) {
     if (!ex.superset_group) {
       groups.push(ex)
     } else if (!seen.has(ex.superset_group)) {
       seen.add(ex.superset_group)
-      const paired = exercises
+      const paired = tabbed
         .filter(e => e.superset_group === ex.superset_group)
         .sort((a, b) => (a.superset_order ?? 0) - (b.superset_order ?? 0))
       groups.push(paired)
     }
   }
 
+  const done = sessionCount ?? 0
+  const total = phase?.duration_weeks ?? null
+  // Standalone workouts (no phase) have no look-ahead concept -- only a workout that belongs
+  // to a block phase can be disabled by that phase not being active yet.
+  const isPhaseActive = !phase || phase.status === 'active'
+
   return (
-    <div className="h-dvh bg-zinc-950 text-white flex flex-col">
+    <div className="h-dvh bg-background text-ink flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link
           href={phase ? `/phases/${p.phase_id}` : '/programmes'}
-          className="p-1 -ml-1 text-zinc-400 hover:text-white transition-colors"
+          className="p-1 -ml-1 text-muted hover:text-ink transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
             <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
@@ -108,7 +120,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
         </Link>
         <div className="flex-1 min-w-0">
           {block && (
-            <p className="text-xs text-zinc-500 mb-0.5">{block.name} · {phase?.phase_label}</p>
+            <p className="text-xs text-muted mb-0.5 truncate">{block.name} · {phase?.phase_label}</p>
           )}
           <h1 className="text-lg font-semibold truncate">{p.name}</h1>
         </div>
@@ -120,7 +132,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
           />
           <Link
             href={`/programmes/${id}/edit`}
-            className="text-xs text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-600"
+            className="text-xs text-muted hover:text-ink transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-ink"
           >
             Edit
           </Link>
@@ -128,17 +140,15 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
       </header>
 
       <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 flex flex-col gap-6">
-        <p className="text-sm text-zinc-500">
-          {sessionCount ?? 0} session{sessionCount === 1 ? '' : 's'} completed
+        <p className="text-sm text-muted">
+          {total !== null ? `${done} of ${total} sessions done` : `${done} sessions done`}
+          {' · '}{exercises.length} exercise{exercises.length === 1 ? '' : 's'}
         </p>
 
         {exercises.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <p className="text-sm text-zinc-500">No exercises yet.</p>
-            <Link
-              href={`/programmes/${id}/edit`}
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-            >
+            <p className="text-sm text-muted">No exercises yet.</p>
+            <Link href={`/programmes/${id}/edit`} className="text-sm text-action hover:brightness-90 transition-[filter]">
               Add exercises →
             </Link>
           </div>
@@ -146,30 +156,33 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
           <div className="flex flex-col gap-3">
             {groups.map((group, i) =>
               Array.isArray(group) ? (
-                <div key={i} className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 overflow-hidden">
-                  <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-indigo-400">
-                    Superset
-                  </p>
-                  {group.map((ex, j) => (
-                    <div
-                      key={ex.id}
-                      className={`flex items-center justify-between px-4 py-3 ${j < group.length - 1 ? 'border-b border-indigo-500/10' : ''}`}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-white">{ex.exercises.name}</p>
-                        {ex.notes && <p className="text-xs text-zinc-500 mt-0.5">{ex.notes}</p>}
+                <div key={i} className="flex gap-3">
+                  <div className="w-0.5 shrink-0 bg-border rounded-full" />
+                  <div className="flex-1 flex flex-col gap-3 py-0.5">
+                    {group.map(ex => (
+                      <div key={ex.id} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex gap-2">
+                          <span className="text-xs font-mono text-muted shrink-0 pt-0.5">{ex.tabLabel}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink truncate">{ex.exercises.group_name ?? ex.exercises.name}</p>
+                            {ex.exercises.group_name && <p className="text-xs text-muted truncate">{ex.exercises.name}</p>}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted shrink-0 ml-3 pt-0.5">{setsLabel(ex)}</span>
                       </div>
-                      <span className="text-xs text-zinc-500 shrink-0 ml-3">{setsLabel(ex)}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <div key={group.id} className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-white">{group.exercises.name}</p>
-                    {group.notes && <p className="text-xs text-zinc-500 mt-0.5">{group.notes}</p>}
+                <div key={group.id} className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex gap-2">
+                    <span className="text-xs font-mono text-muted shrink-0 pt-0.5">{group.tabLabel}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">{group.exercises.group_name ?? group.exercises.name}</p>
+                      {group.exercises.group_name && <p className="text-xs text-muted truncate">{group.exercises.name}</p>}
+                    </div>
                   </div>
-                  <span className="text-xs text-zinc-500 shrink-0 ml-3">{setsLabel(group)}</span>
+                  <span className="text-xs text-muted shrink-0 ml-3 pt-0.5">{setsLabel(group)}</span>
                 </div>
               )
             )}
@@ -178,8 +191,12 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
       </main>
 
       {p.status === 'active' && exercises.length > 0 && (
-        <div className="px-4 pb-8 pt-3 border-t border-zinc-800">
-          <StartWorkoutButton programmeId={id} />
+        <div className="px-4 pb-8 pt-3 border-t border-divider">
+          <StartWorkoutButton
+            programmeId={id}
+            disabled={!isPhaseActive}
+            disabledReason={!isPhaseActive ? "This phase hasn't started yet" : undefined}
+          />
         </div>
       )}
     </div>

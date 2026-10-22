@@ -18,6 +18,21 @@ export async function POST(request: Request) {
     .single()
   if (!programme) return NextResponse.json({ error: UI_STRINGS.workoutNotFoundError }, { status: 404 })
 
+  // Refuse a second in-progress session -- finishing the logger's PATCH call used to be
+  // unchecked, so a failed save could silently leave one behind; this stops it compounding.
+  const { data: existing } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'in_progress')
+    .maybeSingle()
+  if (existing) {
+    return NextResponse.json(
+      { error: 'You already have a workout in progress. Resume or discard it from Today first.' },
+      { status: 409 }
+    )
+  }
+
   // Create the session
   const { data: session, error: sessionErr } = await supabase
     .from('workout_sessions')

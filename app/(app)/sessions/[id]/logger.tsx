@@ -360,6 +360,7 @@ export default function Logger({
   const screens = buildScreens(sessionExercises)
   const [screenIdx, setScreenIdx] = useState(0)
   const [finishing, setFinishing] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
 
   // logged[sessionExerciseId][set_number] = LoggedSet
   const [logged, setLogged] = useState<Record<string, Record<number, LoggedSet>>>(() => {
@@ -449,11 +450,17 @@ export default function Logger({
 
   async function handleFinish() {
     setFinishing(true)
-    await fetch(`/api/sessions/${sessionId}`, {
+    setFinishError(null)
+    const res = await fetch(`/api/sessions/${sessionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'completed' }),
     })
+    if (!res.ok) {
+      setFinishing(false)
+      setFinishError("Couldn't save — check your connection and try again. Nothing you've logged is lost.")
+      return
+    }
     router.push('/programmes')
   }
 
@@ -490,6 +497,12 @@ export default function Logger({
           {finishing ? 'Saving…' : 'Finish early'}
         </button>
       </header>
+
+      {finishError && (
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20">
+          <p className="text-sm text-red-400">{finishError}</p>
+        </div>
+      )}
 
       {/* Rest timer banner */}
       {restSeconds !== null && (

@@ -1,10 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { chartLabel } from '@/lib/exercise-name'
-
-function epley(weight: number, reps: number) {
-  return reps === 1 ? weight : weight * (1 + reps / 30)
-}
+import { sessionValue, filterPointsByRange, seriesStats, type Metric, type Range } from '@/lib/progress-metrics'
 
 // group key = lower(trim(coalesce(group_name, name))) -- null group_name means the
 // exercise is its own group.
@@ -12,11 +9,18 @@ function groupKey(name: string, groupName: string | null) {
   return (groupName ?? name).toLowerCase().trim()
 }
 
+const VALID_METRICS: Metric[] = ['e1rm', 'volume', 'weight', 'reps']
+const VALID_RANGES: Range[] = ['4W', '12W', '6M', 'All']
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: exerciseId } = await params
   const { searchParams } = new URL(request.url)
-  const metric = searchParams.get('metric') ?? '1rm'
+  const metricParam = searchParams.get('metric') ?? 'e1rm'
   const scope = searchParams.get('scope') ?? 'group'
+  const rangeParam = searchParams.get('range') ?? 'All'
+
+  const metric: Metric = VALID_METRICS.includes(metricParam as Metric) ? (metricParam as Metric) : 'e1rm'
+  const range: Range = VALID_RANGES.includes(rangeParam as Range) ? (rangeParam as Range) : 'All'
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -58,7 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   for (const ex of groupExercises) {
     const label = chartLabel(ex)
     if (sessionIds.length === 0) {
-      series.push({ exercise_id: ex.id, name: ex.name, variation: ex.variation, label, points: [] })
+      series.push({ exercise_id: ex.id, name: ex.name, variation: ex.variation, label, points: [], best: null, latest: null, change: null, sessions: 0 })
       continue
     }
 
@@ -69,44 +73,50 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .in('workout_session_id', sessionIds)
 
     if (!seData || seData.length === 0) {
-      series.push({ exercise_id: ex.id, name: ex.name, variation: ex.variation, label, points: [] })
+      series.push({ exercise_id: ex.id, name: ex.name, variation: ex.variation, label, points: [], best: null, latest: null, change: null, sessions: 0 })
       continue
     }
 
     const seIds = seData.map(s => s.id)
     const seSessionMap = new Map(seData.map(se => [se.id, se.workout_session_id]))
 
+    // NOTE: "not skipped" belongs here too (migration 008) -- not added yet, see this
+    // file's header-level note in lib/progress-metrics.ts. Warm-ups ARE excluded now, via
+    // the nested programme_sets.set_type (null for extras added on the day, which are
+    // never warm-ups by definition).
     const { data: logs } = await supabase
       .from('logged_sets')
-      .select('weight, reps, session_exercise_id')
+      .select('weight, reps, session_exercise_id, programme_sets(set_type)')
       .in('session_exercise_id', seIds)
 
-    const bySession = new Map<string, Array<{ weight: number; reps: number }>>()
+    const bySession = new Map<string, Array<{ weight: number; reps: number; isWarmup: boolean }>>()
     for (const log of logs ?? []) {
       const sessionId = seSessionMap.get(log.session_exercise_id)
       if (!sessionId) continue
+      const programmeSet = log.programme_sets as unknown as { set_type: string } | null
       if (!bySession.has(sessionId)) bySession.set(sessionId, [])
-      bySession.get(sessionId)!.push({ weight: log.weight, reps: log.reps })
+      bySession.get(sessionId)!.push({ weight: log.weight, reps: log.reps, isWarmup: programmeSet?.set_type === 'warmup' })
     }
 
-    const points = (sessions ?? [])
+    const allPoints = (sessions ?? [])
       .filter(s => bySession.has(s.id))
-      .map(s => {
-        const sets = bySession.get(s.id)!
-        let value: number
-        if (metric === '1rm') {
-          value = Math.max(...sets.map(set => epley(set.weight, set.reps)))
-          value = Math.round(value * 10) / 10
-        } else if (metric === 'volume') {
-          value = sets.reduce((sum, set) => sum + set.weight * set.reps, 0)
-          value = Math.round(value)
-        } else {
-          value = Math.max(...sets.map(set => set.weight))
-        }
-        return { session_id: s.id, date: s.completed_at!, value }
-      })
+      .map(s => ({ session_id: s.id, date: s.completed_at!, value: sessionValue(bySession.get(s.id)!, metric) }))
+      .filter((p): p is { session_id: string; date: string; value: number } => p.value !== null)
 
-    series.push({ exercise_id: ex.id, name: ex.name, variation: ex.variation, label, points })
+    const points = filterPointsByRange(allPoints, range)
+    const stats = seriesStats(points)
+
+    series.push({
+      exercise_id: ex.id,
+      name: ex.name,
+      variation: ex.variation,
+      label,
+      points,
+      best: stats?.best ?? null,
+      latest: stats?.latest ?? null,
+      change: stats?.change ?? null,
+      sessions: stats?.sessions ?? 0,
+    })
   }
 
   return NextResponse.json({ series })

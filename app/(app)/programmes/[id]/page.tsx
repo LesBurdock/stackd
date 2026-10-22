@@ -165,7 +165,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
                           <span className="text-xs font-mono text-muted shrink-0 pt-0.5">{ex.tabLabel}</span>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-ink truncate">{ex.exercises.group_name ?? ex.exercises.name}</p>
-                            <p className="text-xs text-muted truncate">{ex.exercises.name}</p>
+                            {ex.exercises.group_name && <p className="text-xs text-muted truncate">{ex.exercises.name}</p>}
                           </div>
                         </div>
                         <span className="text-xs text-muted shrink-0 ml-3 pt-0.5">{setsLabel(ex)}</span>
@@ -179,7 +179,7 @@ export default async function ProgrammeDetailPage({ params }: { params: Promise<
                     <span className="text-xs font-mono text-muted shrink-0 pt-0.5">{group.tabLabel}</span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink truncate">{group.exercises.group_name ?? group.exercises.name}</p>
-                      <p className="text-xs text-muted truncate">{group.exercises.name}</p>
+                      {group.exercises.group_name && <p className="text-xs text-muted truncate">{group.exercises.name}</p>}
                     </div>
                   </div>
                   <span className="text-xs text-muted shrink-0 ml-3 pt-0.5">{setsLabel(group)}</span>

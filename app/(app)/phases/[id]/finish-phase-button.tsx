@@ -8,11 +8,9 @@ import ConfirmSheet from '@/components/confirm-sheet'
 export default function FinishPhaseButton({
   phaseId,
   phaseLabel,
-  blockId,
 }: {
   phaseId: string
   phaseLabel: string
-  blockId: string
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -29,7 +27,7 @@ export default function FinishPhaseButton({
       setBusy(false)
       return
     }
-    router.push(`/blocks/${blockId}`)
+    router.push('/programmes')
     router.refresh()
   }
 

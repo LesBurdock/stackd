@@ -28,7 +28,12 @@ type RawBlock = {
   weeks_total: number | null
   finished_at: string | null
   created_at: string
+  peaking_label: string | null
   training_block_phases: RawPhase[]
+}
+
+function phaseCountLabel(n: number) {
+  return `${n} phase${n === 1 ? '' : 's'}`
 }
 
 function formatImportedDate(iso: string) {
@@ -70,7 +75,9 @@ function ActiveBlockCard({ block, phases }: { block: RawBlock; phases: PhaseProg
   return (
     <Card className="p-4">
       <h2 className="text-2xl font-bold text-ink leading-tight">{block.name}</h2>
-      <p className="mt-0.5 text-xs text-muted">{phases.length} phase{phases.length === 1 ? '' : 's'}</p>
+      <p className="mt-0.5 text-xs text-muted">
+        {block.peaking_label ? `Peaking: ${block.peaking_label}` : phaseCountLabel(phases.length)}
+      </p>
 
       <div className="mt-3">
         {phases.map(phase => <PhaseRow key={phase.id} phase={phase} />)}
@@ -94,7 +101,7 @@ function UpNextCard({ block, disabledReason }: { block: RawBlock; disabledReason
     <Card className="p-4">
       <h3 className="text-lg font-bold text-ink leading-tight">{block.name}</h3>
       <p className="mt-0.5 text-xs text-muted">
-        {block.training_block_phases.length} phase{block.training_block_phases.length === 1 ? '' : 's'}
+        {block.peaking_label ? `Peaking: ${block.peaking_label}` : phaseCountLabel(block.training_block_phases.length)}
         {' · imported '}{formatImportedDate(block.created_at)}
       </p>
       <div className="mt-3">
@@ -111,21 +118,16 @@ function PreviousBlockRow({
   block: RawBlock
   dateLabel: string | null
 }) {
+  // No detail page to navigate to anymore -- plain row, not a link.
+  const fallback = block.peaking_label ? null : phaseCountLabel(block.training_block_phases.length)
   return (
-    <Link
-      href={`/blocks/${block.id}`}
-      className="flex items-center justify-between py-3 border-b border-divider last:border-0 hover:opacity-70 transition-opacity"
-    >
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-ink truncate">{block.name}</p>
-        <p className="text-xs text-muted mt-0.5">
-          {dateLabel ?? `${block.training_block_phases.length} phase${block.training_block_phases.length === 1 ? '' : 's'}`}
-        </p>
-      </div>
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4 text-faint shrink-0 ml-3">
-        <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-      </svg>
-    </Link>
+    <div className="py-3 border-b border-divider last:border-0">
+      <p className="text-sm font-semibold text-ink truncate">{block.name}</p>
+      {block.peaking_label && <p className="text-xs text-muted mt-0.5">Peaking: {block.peaking_label}</p>}
+      {(dateLabel ?? fallback) && (
+        <p className="text-xs text-muted mt-0.5">{dateLabel ?? fallback}</p>
+      )}
+    </div>
   )
 }
 
@@ -135,7 +137,7 @@ export default async function ProgrammesPage() {
   const { data: blocksRaw } = await supabase
     .from('training_blocks')
     .select(`
-      id, name, status, weeks_total, finished_at, created_at,
+      id, name, status, weeks_total, finished_at, created_at, peaking_label,
       training_block_phases(id, phase_label, order_index, status, duration_weeks,
         programmes(id, name, order_index))
     `)

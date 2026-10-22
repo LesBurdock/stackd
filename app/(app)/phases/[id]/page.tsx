@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import DeletePhaseButton from './delete-phase-button'
 import FinishPhaseButton from './finish-phase-button'
 import SegmentedBar from '@/components/segmented-bar'
 import TagPill from '@/components/tag-pill'
@@ -67,7 +66,7 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
     <div className="h-dvh bg-background text-ink flex flex-col">
       <header className="flex items-center gap-3 px-4 pt-12 pb-6">
         <Link
-          href={`/blocks/${phase.block_id}`}
+          href="/programmes"
           className="p-1 -ml-1 text-muted hover:text-ink transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
@@ -78,12 +77,6 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
           {block && <p className="text-xs text-muted mb-0.5 truncate">{block.name}</p>}
           <p className="text-xs text-muted">Phase {phase.order_index + 1} of {totalPhases ?? '?'}</p>
         </div>
-        <DeletePhaseButton
-          phaseId={phaseId}
-          phaseLabel={phase.phase_label}
-          blockId={phase.block_id}
-          programmeCount={rawProgrammes.length}
-        />
       </header>
 
       <main className="flex-1 min-h-0 overflow-y-auto px-4 pb-12 flex flex-col gap-6">
@@ -149,7 +142,7 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
         </section>
 
         {phase.status === 'active' && (
-          <FinishPhaseButton phaseId={phaseId} phaseLabel={phase.phase_label} blockId={phase.block_id} />
+          <FinishPhaseButton phaseId={phaseId} phaseLabel={phase.phase_label} />
         )}
       </main>
     </div>

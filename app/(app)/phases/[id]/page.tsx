@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import FinishPhaseButton from './finish-phase-button'
+import FinishBlockButton from '@/components/finish-block-button'
 import SegmentedBar from '@/components/segmented-bar'
 import TagPill from '@/components/tag-pill'
 import { phaseSessionTotals, suggestedWorkout, type PhaseProgress } from '@/lib/derived-counts'
@@ -29,6 +30,19 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
     .from('training_block_phases')
     .select('id', { count: 'exact', head: true })
     .eq('block_id', phase.block_id)
+
+  // Is there a planned phase to advance to? If not, finishing this phase means finishing
+  // the whole block instead -- /api/phases/[id]/advance has no next phase to move to and
+  // would just 400. Same rule the Today "phase complete" card already uses.
+  const { data: nextPhase } = await supabase
+    .from('training_block_phases')
+    .select('id')
+    .eq('block_id', phase.block_id)
+    .eq('status', 'planned')
+    .gt('order_index', phase.order_index)
+    .order('order_index', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
   const programmeIds = rawProgrammes.map(p => p.id)
   const sessionsByProgramme = new Map<string, number>()
@@ -142,7 +156,11 @@ export default async function PhaseDetailPage({ params }: { params: Promise<{ id
         </section>
 
         {phase.status === 'active' && (
-          <FinishPhaseButton phaseId={phaseId} phaseLabel={phase.phase_label} />
+          nextPhase ? (
+            <FinishPhaseButton phaseId={phaseId} phaseLabel={phase.phase_label} />
+          ) : block ? (
+            <FinishBlockButton blockId={block.id} blockName={block.name} variant="primary" />
+          ) : null
         )}
       </main>
     </div>

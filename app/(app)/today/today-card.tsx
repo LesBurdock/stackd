@@ -28,6 +28,7 @@ export default function TodayCard({
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
 
   const displayed: WorkoutProgress = activePhase.workouts.find(w => w.programmeId === pickedId) ?? suggested
   const isPick = pickedId !== null && pickedId !== suggested.programmeId
@@ -37,14 +38,19 @@ export default function TodayCard({
 
   async function handleStart() {
     setStarting(true)
+    setStartError(null)
     const res = await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ programme_id: displayed.programmeId }),
     })
     const data = await res.json()
-    if (res.ok) router.push(`/sessions/${data.id}`)
-    else setStarting(false)
+    if (res.ok) {
+      router.push(`/sessions/${data.id}`)
+      return
+    }
+    setStarting(false)
+    setStartError(data.error ?? 'Failed to start this workout.')
   }
 
   function choose(id: string) {
@@ -80,6 +86,7 @@ export default function TodayCard({
         <Button variant="primary" className="w-full" onClick={handleStart} disabled={starting}>
           {starting ? 'Starting…' : 'Start workout'}
         </Button>
+        {startError && <p className="text-xs text-error text-center">{startError}</p>}
         <button
           type="button"
           onClick={() => setSheetOpen(true)}

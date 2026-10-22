@@ -151,6 +151,15 @@ export default function ProgressClient({ groups }: { groups: GroupEntry[] }) {
       .slice(0, 5)
   }, [series])
 
+  if (groups.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+        <p className="text-sm text-muted">Nothing logged yet.</p>
+        <p className="text-xs text-faint max-w-xs">Progress charts show up here once you've completed a few sessions.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Picker trigger */}
@@ -238,7 +247,7 @@ export default function ProgressClient({ groups }: { groups: GroupEntry[] }) {
                   </p>
                   <p className="text-sm text-muted mt-1">
                     {metricLabel(metric, selectedGroup)} · latest session
-                    {singleLine.change !== null && singleLine.change !== 0 &&
+                    {singleLine.change !== null && singleLine.sessions > 1 &&
                       ` · ${singleLine.change >= 0 ? '+' : ''}${singleLine.change} ${METRIC_UNITS[metric]} since ${range === 'All' ? 'the start' : range}`}
                   </p>
                   {selectedGroup.perHand && <p className="text-xs text-muted mt-0.5">per hand</p>}
@@ -248,6 +257,10 @@ export default function ProgressClient({ groups }: { groups: GroupEntry[] }) {
               <Card className="p-4">
                 {chartSeries.length === 0 ? (
                   <p className="text-sm text-muted text-center py-8">No lines selected.</p>
+                ) : !visibleSeries.some(s => s.points.length > 0) ? (
+                  <p className="text-sm text-muted text-center py-8">
+                    No sessions {range === 'All' ? 'for the selected line' : 'in this range for the selected line'}.
+                  </p>
                 ) : (
                   <ProgressChart series={chartSeries} unit={METRIC_UNITS[metric]} metric={metric} />
                 )}
@@ -276,7 +289,7 @@ export default function ProgressClient({ groups }: { groups: GroupEntry[] }) {
                             {' · '}{s.sessions} session{s.sessions === 1 ? '' : 's'}
                           </>
                         ) : (
-                          'No sessions yet'
+                          range === 'All' ? 'No sessions yet' : 'No sessions in this range'
                         )}
                       </span>
                     </button>
@@ -303,12 +316,7 @@ export default function ProgressClient({ groups }: { groups: GroupEntry[] }) {
         </>
       )}
 
-      {!selectedGroup && groups.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
-          <p className="text-sm text-muted">No sessions logged yet.</p>
-        </div>
-      )}
-      {!selectedGroup && groups.length > 0 && (
+      {!selectedGroup && (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
           <p className="text-sm text-muted">Choose an exercise above to see your progress.</p>
         </div>

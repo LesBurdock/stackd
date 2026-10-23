@@ -5,44 +5,121 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
-  Legend,
-  Filler,
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Line, Bar } from 'react-chartjs-2'
 
-ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+ChartJS.register(LinearScale, PointElement, LineElement, BarElement, Tooltip)
 
-// Palette for up to several concurrent lines -- cycles if a group somehow has more.
-const COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#a855f7', '#06b6d4']
+// Ink + orange only, differentiated by dash pattern so colour is never the only cue
+// (CLAUDE.md's Design handoff "Progress" paragraph). Cycles past 4 lines if needed.
+const INK = '#16181D'
+const ORANGE = '#FF9500'
+const LINE_STYLES: { color: string; dash: number[] }[] = [
+  { color: INK, dash: [] },
+  { color: ORANGE, dash: [] },
+  { color: INK, dash: [6, 4] },
+  { color: ORANGE, dash: [6, 4] },
+  { color: INK, dash: [2, 2] },
+  { color: ORANGE, dash: [2, 2] },
+]
 
 export type ChartSeries = {
   id: string
   label: string
-  points: { x: number; y: number }[]  // x = ms timestamp
+  points: { x: number; y: number }[] // x = ms timestamp
 }
 
 function formatTick(ms: number) {
   return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-export default function LineChart({ series, unit }: { series: ChartSeries[]; unit: string }) {
+const sharedScales = {
+  x: {
+    type: 'linear' as const,
+    grid: { color: '#E3E1DA' },
+    ticks: { color: '#62666F', font: { size: 11 }, callback: (v: unknown) => formatTick(Number(v)) },
+  },
+  y: {
+    grid: { color: '#E3E1DA' },
+    ticks: { color: '#62666F', font: { size: 11 } },
+    beginAtZero: false,
+  },
+}
+
+const sharedTooltip = {
+  backgroundColor: '#16181D',
+  titleColor: '#9A9DA4',
+  bodyColor: '#FFFFFF',
+  borderWidth: 0,
+}
+
+export default function ProgressChart({
+  series,
+  unit,
+  metric,
+}: {
+  series: ChartSeries[]
+  unit: string
+  metric: string
+}) {
+  if (metric === 'volume') {
+    // No board shows multiple concurrent volume bar series -- approximated here as one bar
+    // dataset per series, each its own latest-bar-in-orange, rather than inventing a
+    // grouped-bar treatment nothing in the design specifies.
+    return (
+      <Bar
+        data={{
+          datasets: series.map(s => {
+            const maxX = Math.max(...s.points.map(p => p.x))
+            return {
+              label: s.label,
+              data: s.points,
+              backgroundColor: s.points.map(p => (p.x === maxX ? ORANGE : INK)),
+              borderRadius: 3,
+              barPercentage: 0.5,
+            }
+          }),
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: true,
+          parsing: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...sharedTooltip,
+              callbacks: {
+                title: items => (items[0]?.parsed.x != null ? formatTick(items[0].parsed.x) : ''),
+                label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} ${unit}`,
+              },
+            },
+          },
+          scales: sharedScales,
+        }}
+      />
+    )
+  }
+
   return (
     <Line
       data={{
         datasets: series.map((s, i) => {
-          const color = COLORS[i % COLORS.length]
+          const style = LINE_STYLES[i % LINE_STYLES.length]
+          const maxX = Math.max(...s.points.map(p => p.x))
           return {
             label: s.label,
             data: s.points,
-            borderColor: color,
-            backgroundColor: `${color}14`,
+            borderColor: style.color,
+            borderDash: style.dash,
+            backgroundColor: style.color,
             borderWidth: 2,
-            pointBackgroundColor: color,
-            pointBorderColor: '#18181b',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
+            pointBackgroundColor: s.points.map(p => (p.x === maxX ? ORANGE : style.color)),
+            pointBorderColor: '#FFFFFF',
+            pointBorderWidth: 1,
+            pointRadius: s.points.map(p => (p.x === maxX ? 6 : 4)),
+            pointHoverRadius: 7,
             fill: false,
             tension: 0,
             spanGaps: false,
@@ -54,38 +131,16 @@ export default function LineChart({ series, unit }: { series: ChartSeries[]; uni
         maintainAspectRatio: true,
         parsing: false,
         plugins: {
-          legend: {
-            display: true,
-            labels: { color: '#a1a1aa', boxWidth: 10, font: { size: 11 } },
-          },
+          legend: { display: false },
           tooltip: {
-            backgroundColor: '#27272a',
-            borderColor: '#3f3f46',
-            borderWidth: 1,
-            titleColor: '#a1a1aa',
-            bodyColor: '#ffffff',
+            ...sharedTooltip,
             callbacks: {
               title: items => (items[0]?.parsed.x != null ? formatTick(items[0].parsed.x) : ''),
               label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} ${unit}`,
             },
           },
         },
-        scales: {
-          x: {
-            type: 'linear',
-            grid: { color: 'rgba(255,255,255,0.05)' },
-            ticks: {
-              color: '#71717a',
-              font: { size: 11 },
-              callback: value => formatTick(Number(value)),
-            },
-          },
-          y: {
-            grid: { color: 'rgba(255,255,255,0.05)' },
-            ticks: { color: '#71717a', font: { size: 11 } },
-            beginAtZero: false,
-          },
-        },
+        scales: sharedScales,
       }}
     />
   )
